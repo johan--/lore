@@ -48,7 +48,21 @@ recall index ~/.claude/projects --subagents  # include subagent transcripts
 recall index ~/.claude/projects --redact     # opt-in secret redaction (see below)
 ```
 
+Other harnesses are selected with `--source`. Codex ships built-in:
+
+```bash
+recall index ~/.codex/archived_sessions --source codex
+```
+
 Re-run it any time — unchanged files are skipped, so repeat runs are cheap.
+
+## Onboard another harness
+
+Don't see your harness? `recall sample <transcript-dir>` summarizes its on-disk
+format, and the bundled **recall-setup** skill (`skills/recall-setup/`) walks an
+agent deterministically from "installed" to "my sessions are searchable" —
+including writing and proving a new adapter, or using the live `push` path when a
+harness has no transcript files. Self-setup is the proof it works.
 
 ## Serve it to an MCP client
 
