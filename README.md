@@ -12,6 +12,26 @@ away.
 It is **local-only**. The store lives at `~/.recall/recall.db`, outside any repo
 and gitignored by default. Transcript content never leaves your machine.
 
+## Quick start — paste this into your agent
+
+recall onboards itself. Clone this repo, then paste the blurb below into any
+coding agent (Claude Code, Codex, Cursor, Cline, …). The agent installs recall,
+indexes your own session history, registers recall into _its own_ MCP config,
+figures out the reload step for your client, and proves search works:
+
+```
+Set up recall (full-fidelity session memory over MCP) for yourself.
+Read AGENT-ONBOARD.md in <path-to-recall> and follow it top to bottom:
+install + build, run `recall setup` to index my history and self-verify,
+register the recall MCP server in your own client config, reload so the
+tools load, then prove it by calling search_memory for a word from a past
+session. Tell me any manual step (like restarting) that I have to do.
+```
+
+The deterministic spine the agent follows lives in
+[`AGENT-ONBOARD.md`](AGENT-ONBOARD.md). If you'd rather drive it yourself, the
+single command that does the indexing half is `recall setup` (see below).
+
 ## How it works
 
 - **One shared store, many harnesses.** Each harness writes into its own `source`
@@ -39,8 +59,16 @@ Requires Node 22+.
 
 ## Backfill your history
 
-Point `recall index` at a transcript directory. For Claude Code that's
-`~/.claude/projects`:
+The fastest path is `recall setup`: it detects known harnesses on the machine,
+indexes each into the store, verifies search works, and prints how to register
+recall in your MCP client.
+
+```bash
+recall setup
+```
+
+For finer control, point `recall index` at a transcript directory. For Claude
+Code that's `~/.claude/projects`:
 
 ```bash
 recall index ~/.claude/projects              # primary transcripts
