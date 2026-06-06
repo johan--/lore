@@ -1,24 +1,6 @@
 import { createHash } from "node:crypto";
-import {
-  type MessageRecord,
-  type MessageRole,
-  type ParsedLine,
-  type Source,
-  type ToolCallRecord,
-} from "../../core/records.js";
-
-export interface ParseContext {
-  sourceFileId: string;
-  sessionId: string;
-  seq: number;
-  source: Source;
-  /** Cap on stored text/tool payload chars. Defaults to 100_000. */
-  maxTextChars?: number;
-}
-
-export type ParseOutcome =
-  | { kind: "parsed"; parsed: ParsedLine }
-  | { kind: "skipped"; reason: string };
+import { type MessageRecord, type MessageRole, type ToolCallRecord } from "../../core/records.js";
+import type { ParseContext, ParseOutcome } from "../contract.js";
 
 const DEFAULT_MAX_TEXT_CHARS = 100_000;
 const PARSEABLE_ROLES = new Set<MessageRole>(["user", "assistant", "system"]);

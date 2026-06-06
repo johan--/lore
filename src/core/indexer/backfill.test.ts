@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { openStore, type Store } from "../store/open-store.js";
 import { backfillDirectory } from "./backfill.js";
 import { searchMemory } from "../search/search-memory.js";
+import type { SourceAdapter } from "../../adapters/contract.js";
+import { computeMessageId } from "../../adapters/claude-code/parse-line.js";
 
 let dir: string;
 let db: Store;
@@ -73,6 +75,51 @@ describe("backfillDirectory", () => {
     expect(second.filesSkipped).toBe(1); // B unchanged
     expect(second.filesIndexed).toBe(1); // A reindexed (appended)
     expect(searchMemory(db, "charlie")).toHaveLength(1);
+  });
+
+  it("indexes through a custom adapter into that adapter's source namespace", async () => {
+    await writeFile(
+      join(dir, "roll.jsonl"),
+      JSON.stringify({ role: "user", uuid: "cu1", text: "codex pull path works" }) + "\n",
+    );
+
+    const codexAdapter: SourceAdapter = {
+      source: "codex",
+      discover: async (root) => [
+        { path: join(root, "roll.jsonl"), kind: "primary", agentFile: null, sessionId: "codex-s" },
+      ],
+      parseLine: (raw, ctx) => {
+        const o = JSON.parse(raw) as { role: "user"; uuid: string; text: string };
+        return {
+          kind: "parsed",
+          parsed: {
+            message: {
+              messageId: computeMessageId(ctx.sourceFileId, o.uuid, ctx.seq),
+              sourceFileId: ctx.sourceFileId,
+              sessionId: ctx.sessionId,
+              uuid: o.uuid,
+              parentUuid: null,
+              seq: ctx.seq,
+              role: o.role,
+              timestamp: null,
+              project: null,
+              branch: null,
+              model: null,
+              agent: null,
+              skill: null,
+              text: o.text,
+              textTruncated: false,
+            },
+            toolCalls: [],
+          },
+        };
+      },
+    };
+
+    const result = await backfillDirectory(db, dir, { adapter: codexAdapter });
+    expect(result.filesIndexed).toBe(1);
+    expect(searchMemory(db, "codex", { source: "codex" })).toHaveLength(1);
+    expect(searchMemory(db, "codex", { source: "claude-code" })).toHaveLength(0);
   });
 
   it("indexes subagent files when includeSubagents is set", async () => {

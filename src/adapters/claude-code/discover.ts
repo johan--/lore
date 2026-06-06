@@ -1,19 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import type { SourceFileKind } from "../../core/records.js";
-
-export interface DiscoveredFile {
-  path: string;
-  kind: SourceFileKind;
-  /** For subagent files, the agent file name (basename without extension). */
-  agentFile: string | null;
-  /**
-   * Authoritative session id. For subagent files this is the parent session,
-   * derived structurally from the path (`<sessionId>/subagents/agent-*.jsonl`).
-   * Null for primary files, where the indexer infers it from the payload/filename.
-   */
-  sessionId: string | null;
-}
+import type { DiscoveredFile } from "../contract.js";
 
 /**
  * Walk a directory tree for Claude Code transcripts. Files directly named

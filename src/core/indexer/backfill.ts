@@ -1,7 +1,8 @@
 import type { Store } from "../store/open-store.js";
 import { indexFile } from "./index-file.js";
-import { discoverTranscripts } from "../../adapters/claude-code/discover.js";
 import { logger } from "../logger.js";
+import type { SourceAdapter } from "../../adapters/contract.js";
+import { claudeCodeAdapter } from "../../adapters/claude-code/adapter.js";
 
 export interface BackfillOptions {
   /** Index subagent files too. Slice 1 default indexes primary files only. */
@@ -11,6 +12,8 @@ export interface BackfillOptions {
   progressEvery?: number;
   /** Opt-in secret redaction over text/tool payloads. Off by default. */
   redact?: boolean;
+  /** Source adapter for discovery + parsing. Defaults to the Claude Code adapter. */
+  adapter?: SourceAdapter;
 }
 
 export interface BackfillResult {
@@ -38,7 +41,8 @@ export async function backfillDirectory(
   root: string,
   opts: BackfillOptions = {},
 ): Promise<BackfillResult> {
-  const discovered = await discoverTranscripts(root);
+  const adapter = opts.adapter ?? claudeCodeAdapter;
+  const discovered = await adapter.discover(root);
   const targets = opts.includeSubagents
     ? discovered
     : discovered.filter((f) => f.kind === "primary");
@@ -61,6 +65,7 @@ export async function backfillDirectory(
         sessionId: file.sessionId ?? undefined,
         maxTextChars: opts.maxTextChars,
         redact: opts.redact,
+        adapter,
       });
       totals.files++;
       if (result.mode === "skip") {

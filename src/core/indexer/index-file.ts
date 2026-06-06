@@ -9,11 +9,12 @@ import {
   upsertSourceFile,
   upsertToolCall,
 } from "../store/upsert.js";
-import { parseLine } from "../../adapters/claude-code/parse-line.js";
 import type { SourceFileKind } from "../records.js";
 import { logger } from "../logger.js";
 import { redactSecrets } from "../redact.js";
 import { recomputeSession } from "../store/recompute-session.js";
+import type { SourceAdapter } from "../../adapters/contract.js";
+import { claudeCodeAdapter } from "../../adapters/claude-code/adapter.js";
 import { planReindex, prefixHash, PREFIX_BYTES, type PriorWatermark } from "./watermark.js";
 
 export interface IndexFileOptions {
@@ -34,6 +35,8 @@ export interface IndexFileOptions {
    * credential redactor before they're stored or indexed.
    */
   redact?: boolean;
+  /** Source adapter that knows how to parse this harness's lines. Defaults to Claude Code. */
+  adapter?: SourceAdapter;
 }
 
 export interface IndexFileResult {
@@ -81,6 +84,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
   const sourceFileId = opts.path;
   const kind: SourceFileKind = opts.kind ?? "primary";
   const sessionId = opts.sessionId ?? basename(opts.path).replace(/\.jsonl$/i, "");
+  const adapter = opts.adapter ?? claudeCodeAdapter;
 
   const stats = await stat(opts.path).catch(() => null);
   const prior = readWatermark(db, sourceFileId);
@@ -133,11 +137,11 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
     // rewritten/rotated file never leaves orphans behind.
     if (plan.mode === "full") deleteFileRows(db, sourceFileId);
     for (const { line, seq: lineSeq } of rows) {
-      const outcome = parseLine(line, {
+      const outcome = adapter.parseLine(line, {
         sourceFileId,
         sessionId,
         seq: lineSeq,
-        source: "claude-code",
+        source: adapter.source,
         maxTextChars: opts.maxTextChars,
       });
       if (outcome.kind === "skipped") {
@@ -170,7 +174,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
 
   upsertSourceFile(db, {
     sourceFileId,
-    source: "claude-code",
+    source: adapter.source,
     sessionId,
     kind,
     agentFile: opts.agentFile ?? null,
