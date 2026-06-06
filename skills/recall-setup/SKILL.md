@@ -99,6 +99,14 @@ Deterministic procedure:
    `{ kind: "skipped", reason }` for meta/unknown lines. Reuse `computeMessageId`
    from the claude-code parser so message ids stay stable
    (`hash(sourceFileId + uuid + seq)`).
+   - `parseLine` is **stateless per line**. If a harness uses a flat timeline
+     where tool calls and their outputs are separate lines (Codex does), map each
+     line to its own message and attach the tool call to that line, pairing the
+     output back by the harness's call id. If session-level fields like project
+     or model only appear on a header line (not on each message), they will be
+     null on the messages; that is an accepted limitation, not a bug. See
+     `src/adapters/codex/parse-line.ts` for a worked example of a flat-timeline
+     adapter.
 3. **Prove it before registering.** Call `checkAdapterConformance` from
    `src/adapters/conformance.ts` with fixtures from the real format (use a line
    you saw via `recall sample`). It returns a structured `ConformanceReport`;
