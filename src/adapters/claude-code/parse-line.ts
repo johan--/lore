@@ -1,0 +1,182 @@
+import { createHash } from "node:crypto";
+import {
+  type MessageRecord,
+  type MessageRole,
+  type ParsedLine,
+  type Source,
+  type ToolCallRecord,
+} from "../../core/records.js";
+
+export interface ParseContext {
+  sourceFileId: string;
+  sessionId: string;
+  seq: number;
+  source: Source;
+  /** Cap on stored text/tool payload chars. Defaults to 100_000. */
+  maxTextChars?: number;
+}
+
+export type ParseOutcome =
+  | { kind: "parsed"; parsed: ParsedLine }
+  | { kind: "skipped"; reason: string };
+
+const DEFAULT_MAX_TEXT_CHARS = 100_000;
+const PARSEABLE_ROLES = new Set<MessageRole>(["user", "assistant", "system"]);
+
+export function computeMessageId(sourceFileId: string, uuid: string, seq: number): string {
+  return createHash("sha256").update(`${sourceFileId}\u0000${uuid}\u0000${seq}`).digest("hex");
+}
+
+interface ContentBlock {
+  type?: string;
+  text?: string;
+  thinking?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  tool_use_id?: string;
+  content?: unknown;
+  is_error?: boolean;
+}
+
+function cap(value: string, max: number): { text: string; truncated: boolean } {
+  if (value.length <= max) return { text: value, truncated: false };
+  return { text: value.slice(0, max), truncated: true };
+}
+
+function stringifyResultContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((b) =>
+        b && typeof b === "object" && "text" in b ? String((b as ContentBlock).text) : "",
+      )
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (content == null) return "";
+  return JSON.stringify(content);
+}
+
+function extractText(messageContent: unknown): string {
+  if (typeof messageContent === "string") return messageContent;
+  if (!Array.isArray(messageContent)) return "";
+  const parts: string[] = [];
+  for (const block of messageContent as ContentBlock[]) {
+    if (!block || typeof block !== "object") continue;
+    if (block.type === "text" && typeof block.text === "string") parts.push(block.text);
+    else if (block.type === "thinking" && typeof block.thinking === "string")
+      parts.push(block.thinking);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Parse one raw transcript line into a normalized message + tool calls.
+ * Returns `skipped` (with a reason) for meta/unknown line types so the caller
+ * can count skips instead of crashing. Oversized text is capped and flagged,
+ * never loaded unbounded.
+ */
+export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
+  const maxChars = ctx.maxTextChars ?? DEFAULT_MAX_TEXT_CHARS;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawLine) as Record<string, unknown>;
+  } catch {
+    return { kind: "skipped", reason: "json-parse-error" };
+  }
+
+  const type = parsed["type"];
+  if (typeof type !== "string" || !PARSEABLE_ROLES.has(type as MessageRole)) {
+    return { kind: "skipped", reason: `unhandled-type:${String(type)}` };
+  }
+  const role = type as MessageRole;
+
+  const uuid = typeof parsed["uuid"] === "string" ? (parsed["uuid"] as string) : "";
+  const parentUuid =
+    typeof parsed["parentUuid"] === "string" ? (parsed["parentUuid"] as string) : null;
+  const timestamp =
+    typeof parsed["timestamp"] === "string" ? (parsed["timestamp"] as string) : null;
+  const project = typeof parsed["cwd"] === "string" ? (parsed["cwd"] as string) : null;
+  const branch = typeof parsed["gitBranch"] === "string" ? (parsed["gitBranch"] as string) : null;
+
+  const messageBlock =
+    parsed["message"] && typeof parsed["message"] === "object"
+      ? (parsed["message"] as Record<string, unknown>)
+      : null;
+
+  const model =
+    messageBlock && typeof messageBlock["model"] === "string"
+      ? (messageBlock["model"] as string)
+      : null;
+
+  const rawContent = messageBlock ? messageBlock["content"] : parsed["content"];
+  const capped = cap(extractText(rawContent), maxChars);
+
+  const messageId = computeMessageId(ctx.sourceFileId, uuid, ctx.seq);
+
+  const message: MessageRecord = {
+    messageId,
+    sourceFileId: ctx.sourceFileId,
+    sessionId: ctx.sessionId,
+    uuid,
+    parentUuid,
+    seq: ctx.seq,
+    role,
+    timestamp,
+    project,
+    branch,
+    model,
+    agent: null,
+    text: capped.text,
+    textTruncated: capped.truncated,
+  };
+
+  const toolCalls = extractToolCalls(rawContent, ctx, messageId, maxChars);
+
+  return { kind: "parsed", parsed: { message, toolCalls } };
+}
+
+function extractToolCalls(
+  rawContent: unknown,
+  ctx: ParseContext,
+  messageId: string,
+  maxChars: number,
+): ToolCallRecord[] {
+  if (!Array.isArray(rawContent)) return [];
+  const calls: ToolCallRecord[] = [];
+  for (const block of rawContent as ContentBlock[]) {
+    if (!block || typeof block !== "object") continue;
+    if (block.type === "tool_use") {
+      const input = cap(JSON.stringify(block.input ?? null), maxChars);
+      calls.push({
+        toolCallId: `${messageId}:${block.id ?? calls.length}`,
+        sourceFileId: ctx.sourceFileId,
+        sessionId: ctx.sessionId,
+        messageId,
+        toolUseId: typeof block.id === "string" ? block.id : "",
+        toolName: typeof block.name === "string" ? block.name : "",
+        input: input.text,
+        result: null,
+        isError: null,
+        truncated: input.truncated,
+      });
+    } else if (block.type === "tool_result") {
+      const result = cap(stringifyResultContent(block.content), maxChars);
+      calls.push({
+        toolCallId: `${messageId}:result:${block.tool_use_id ?? calls.length}`,
+        sourceFileId: ctx.sourceFileId,
+        sessionId: ctx.sessionId,
+        messageId,
+        toolUseId: typeof block.tool_use_id === "string" ? block.tool_use_id : "",
+        toolName: "",
+        input: "",
+        result: result.text,
+        isError: typeof block.is_error === "boolean" ? block.is_error : null,
+        truncated: result.truncated,
+      });
+    }
+  }
+  return calls;
+}
