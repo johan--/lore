@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { pathToFileURL } from "node:url";
+import { isMainModule } from "./is-main.js";
 import { openStore } from "../core/store/open-store.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { backfillDirectory } from "../core/indexer/backfill.js";
@@ -142,10 +142,7 @@ export async function runCli(argv: string[]): Promise<number> {
   }
 }
 
-const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (invokedDirectly) {
+if (isMainModule(import.meta.url, process.argv[1])) {
   runCli(process.argv.slice(2))
     .then((code) => {
       if (code !== 0) process.exitCode = code;
