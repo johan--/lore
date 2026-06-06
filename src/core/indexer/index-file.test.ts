@@ -102,6 +102,98 @@ describe("indexFile", () => {
     expect(searchMemory(db, "alamo")).toHaveLength(1);
   });
 
+  it("rolls subagent messages under the parent session but keeps them attributable", async () => {
+    const parent = SESSION;
+    const agentHash = "agent-a555e804c9bf7ebe7";
+    const subLines = [
+      line({
+        type: "user",
+        uuid: "su-1",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:05:00.000Z",
+        sessionId: parent,
+        agentId: "a555e804c9bf7ebe7",
+        isSidechain: true,
+        cwd: "/repo",
+        gitBranch: "main",
+        message: { role: "user", content: "subagent indexing alamo work" },
+      }),
+    ];
+    const path = await writeFixture(`${agentHash}.jsonl`, subLines);
+    const result = await indexFile(db, {
+      path,
+      kind: "subagent",
+      agentFile: agentHash,
+      sessionId: parent,
+    });
+
+    expect(result.sessionId).toBe(parent);
+    const row = db.prepare("SELECT session_id, agent, source_file_id FROM messages").get() as {
+      session_id: string;
+      agent: string;
+      source_file_id: string;
+    };
+    expect(row.session_id).toBe(parent);
+    expect(row.agent).toBe("a555e804c9bf7ebe7");
+    expect(row.source_file_id).toBe(path);
+  });
+
+  it("treats an explicit sessionId as authoritative over a divergent payload", async () => {
+    const parent = SESSION;
+    const subLines = [
+      line({
+        type: "user",
+        uuid: "su-1",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:05:00.000Z",
+        // Payload claims a different (wrong) session; the structural parent wins.
+        sessionId: "stale-or-wrong-session",
+        agentId: "a555e804c9bf7ebe7",
+        isSidechain: true,
+        message: { role: "user", content: "subagent alamo work" },
+      }),
+    ];
+    const path = await writeFixture("agent-a555e804c9bf7ebe7.jsonl", subLines);
+    const result = await indexFile(db, {
+      path,
+      kind: "subagent",
+      agentFile: "agent-a555e804c9bf7ebe7",
+      sessionId: parent,
+    });
+
+    expect(result.sessionId).toBe(parent);
+    const row = db.prepare("SELECT session_id FROM messages").get() as { session_id: string };
+    expect(row.session_id).toBe(parent);
+  });
+
+  it("keeps same-uuid lines of differing content as distinct rows", async () => {
+    const lines = [
+      line({
+        type: "user",
+        uuid: "dup",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:01.000Z",
+        sessionId: SESSION,
+        message: { role: "user", content: "alamo collision payload one" },
+      }),
+      line({
+        type: "user",
+        uuid: "dup",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:02.000Z",
+        sessionId: SESSION,
+        message: { role: "user", content: "alamo collision payload two" },
+      }),
+    ];
+    const path = await writeFixture(`${SESSION}.jsonl`, lines);
+    const result = await indexFile(db, { path });
+
+    expect(result.messages).toBe(2);
+    const count = db.prepare("SELECT COUNT(*) AS n FROM messages").get() as { n: number };
+    expect(count.n).toBe(2);
+    expect(searchMemory(db, "collision")).toHaveLength(2);
+  });
+
   it("truncates and flags a multi-MB line instead of crashing or returning it raw", async () => {
     const huge = "alamo " + "z".repeat(3_000_000);
     const lines = [

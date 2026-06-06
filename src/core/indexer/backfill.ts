@@ -37,6 +37,7 @@ export async function backfillDirectory(
         path: file.path,
         kind: file.kind,
         agentFile: file.agentFile,
+        sessionId: file.sessionId ?? undefined,
         maxTextChars: opts.maxTextChars,
       });
       totals.files++;

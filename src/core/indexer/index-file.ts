@@ -13,7 +13,11 @@ export interface IndexFileOptions {
   kind?: SourceFileKind;
   /** For subagent files: the agent file hash/name. */
   agentFile?: string | null;
-  /** Overrides session id inference (defaults to payload, then filename). */
+  /**
+   * Authoritative logical session for this file. Discovery passes the structural
+   * parent session for subagent files; for primary files it defaults to the
+   * filename (`<sessionId>.jsonl`).
+   */
   sessionId?: string;
   maxTextChars?: number;
 }
@@ -35,7 +39,7 @@ export interface IndexFileResult {
 export async function indexFile(db: Store, opts: IndexFileOptions): Promise<IndexFileResult> {
   const sourceFileId = opts.path;
   const kind: SourceFileKind = opts.kind ?? "primary";
-  const fileSession = opts.sessionId ?? basename(opts.path).replace(/\.jsonl$/i, "");
+  const sessionId = opts.sessionId ?? basename(opts.path).replace(/\.jsonl$/i, "");
 
   const stream = createReadStream(opts.path, { encoding: "utf8" });
   const rl = createInterface({ input: stream, crlfDelay: Infinity });
@@ -44,7 +48,6 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
   let messages = 0;
   let toolCalls = 0;
   let skipped = 0;
-  let resolvedSession = fileSession;
   let project: string | null = null;
   let branch: string | null = null;
   let firstTimestamp: string | null = null;
@@ -70,7 +73,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
     for (const { line, seq: lineSeq } of rows) {
       const outcome = parseLine(line, {
         sourceFileId,
-        sessionId: resolvedSession,
+        sessionId,
         seq: lineSeq,
         source: "claude-code",
         maxTextChars: opts.maxTextChars,
@@ -80,12 +83,10 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
         continue;
       }
       const { message, toolCalls: calls } = outcome.parsed;
-      if (message.sessionId) resolvedSession = message.sessionId;
-      message.sessionId = resolvedSession;
       upsertMessage(db, message);
       messages++;
       for (const call of calls) {
-        call.sessionId = resolvedSession;
+        call.sessionId = sessionId;
         upsertToolCall(db, call);
         toolCalls++;
       }
@@ -105,7 +106,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
   upsertSourceFile(db, {
     sourceFileId,
     source: "claude-code",
-    sessionId: resolvedSession,
+    sessionId,
     kind,
     agentFile: opts.agentFile ?? null,
     path: opts.path,
@@ -117,7 +118,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
   });
 
   upsertSession(db, {
-    sessionId: resolvedSession,
+    sessionId,
     source: "claude-code",
     project,
     branch,
@@ -128,5 +129,5 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
 
   logger.debug("indexed file", { path: opts.path, messages, toolCalls, skipped });
 
-  return { sourceFileId, sessionId: resolvedSession, messages, toolCalls, skipped };
+  return { sourceFileId, sessionId, messages, toolCalls, skipped };
 }

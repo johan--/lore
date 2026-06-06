@@ -111,8 +111,11 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
       ? (messageBlock["model"] as string)
       : null;
 
+  const agent = typeof parsed["agentId"] === "string" ? (parsed["agentId"] as string) : null;
+
   const rawContent = messageBlock ? messageBlock["content"] : parsed["content"];
   const capped = cap(extractText(rawContent), maxChars);
+  const skill = extractSkill(rawContent);
 
   const messageId = computeMessageId(ctx.sourceFileId, uuid, ctx.seq);
 
@@ -128,7 +131,8 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
     project,
     branch,
     model,
-    agent: null,
+    agent,
+    skill,
     text: capped.text,
     textTruncated: capped.truncated,
   };
@@ -136,6 +140,22 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
   const toolCalls = extractToolCalls(rawContent, ctx, messageId, maxChars);
 
   return { kind: "parsed", parsed: { message, toolCalls } };
+}
+
+/** The skill name of the first `Skill` tool_use in the content, if any. */
+function extractSkill(rawContent: unknown): string | null {
+  if (!Array.isArray(rawContent)) return null;
+  for (const block of rawContent as ContentBlock[]) {
+    if (!block || typeof block !== "object") continue;
+    if (block.type === "tool_use" && block.name === "Skill") {
+      const input = block.input;
+      if (input && typeof input === "object" && "skill" in input) {
+        const skill = (input as { skill?: unknown }).skill;
+        if (typeof skill === "string" && skill.length > 0) return skill;
+      }
+    }
+  }
+  return null;
 }
 
 function extractToolCalls(

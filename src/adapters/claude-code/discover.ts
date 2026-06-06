@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { SourceFileKind } from "../../core/records.js";
 
 export interface DiscoveredFile {
@@ -7,6 +7,12 @@ export interface DiscoveredFile {
   kind: SourceFileKind;
   /** For subagent files, the agent file name (basename without extension). */
   agentFile: string | null;
+  /**
+   * Authoritative session id. For subagent files this is the parent session,
+   * derived structurally from the path (`<sessionId>/subagents/agent-*.jsonl`).
+   * Null for primary files, where the indexer infers it from the payload/filename.
+   */
+  sessionId: string | null;
 }
 
 /**
@@ -34,11 +40,14 @@ async function walk(dir: string, acc: DiscoveredFile[]): Promise<void> {
     if (entry.isDirectory()) {
       await walk(full, acc);
     } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
-      const isSubagent = dir.split(/[/\\]/).includes("subagents");
+      const isSubagent = basename(dir) === "subagents";
       acc.push({
         path: full,
         kind: isSubagent ? "subagent" : "primary",
         agentFile: isSubagent ? entry.name.replace(/\.jsonl$/i, "") : null,
+        // <sessionId>/subagents/agent-*.jsonl → the parent session is the dir
+        // that holds `subagents/`.
+        sessionId: isSubagent ? basename(dirname(dir)) : null,
       });
     }
   }

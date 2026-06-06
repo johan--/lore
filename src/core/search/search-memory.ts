@@ -18,6 +18,18 @@ export interface SearchHit {
 }
 
 export interface SearchOptions {
+  project?: string;
+  branch?: string;
+  agent?: string;
+  skill?: string;
+  /** Tool name; matches messages that issued a tool_call with this name. */
+  tool?: string;
+  role?: string;
+  model?: string;
+  /** Inclusive lower bound on ISO-8601 timestamp. */
+  since?: string;
+  /** Inclusive upper bound on ISO-8601 timestamp. */
+  until?: string;
   limit?: number;
 }
 
@@ -48,6 +60,40 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
   if (!sanitized) return [];
   const limit = opts.limit ?? DEFAULT_LIMIT;
 
+  const where: string[] = ["messages_fts MATCH ?"];
+  const params: (string | number)[] = [sanitized];
+
+  const eqFilters: [keyof SearchOptions, string][] = [
+    ["project", "m.project"],
+    ["branch", "m.branch"],
+    ["agent", "m.agent"],
+    ["skill", "m.skill"],
+    ["role", "m.role"],
+    ["model", "m.model"],
+  ];
+  for (const [key, column] of eqFilters) {
+    const value = opts[key];
+    if (typeof value === "string") {
+      where.push(`${column} = ?`);
+      params.push(value);
+    }
+  }
+  if (typeof opts.since === "string") {
+    where.push("m.timestamp >= ?");
+    params.push(opts.since);
+  }
+  if (typeof opts.until === "string") {
+    where.push("m.timestamp <= ?");
+    params.push(opts.until);
+  }
+  if (typeof opts.tool === "string") {
+    where.push(
+      "EXISTS (SELECT 1 FROM tool_calls tc WHERE tc.message_id = m.message_id AND tc.tool_name = ?)",
+    );
+    params.push(opts.tool);
+  }
+  params.push(limit);
+
   const rows = db
     .prepare(
       `SELECT m.message_id, m.session_id, m.source_file_id, m.role, m.timestamp,
@@ -55,11 +101,11 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
               -bm25(messages_fts) AS score
          FROM messages_fts
          JOIN messages m ON m.rowid = messages_fts.rowid
-        WHERE messages_fts MATCH ?
+        WHERE ${where.join(" AND ")}
         ORDER BY score DESC
         LIMIT ?`,
     )
-    .all(sanitized, limit) as HitRow[];
+    .all(...params) as HitRow[];
 
   return rows.map((r) => ({
     messageId: r.message_id,

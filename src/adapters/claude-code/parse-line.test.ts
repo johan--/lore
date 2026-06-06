@@ -154,3 +154,52 @@ describe("parseLine — tool_result and meta", () => {
     expect(outcome.reason).toBe("json-parse-error");
   });
 });
+
+describe("parseLine — skill and agent dimensions", () => {
+  it("captures the skill name from a Skill tool_use onto the message", () => {
+    const line = JSON.stringify({
+      type: "assistant",
+      uuid: "a-2",
+      parentUuid: "u-1",
+      timestamp: "2026-05-10T03:55:00.000Z",
+      sessionId: "sess-1",
+      message: {
+        role: "assistant",
+        model: "claude-opus-4-8",
+        content: [{ type: "tool_use", id: "toolu_9", name: "Skill", input: { skill: "to-prd" } }],
+      },
+    });
+    const outcome = parseLine(line, { ...baseCtx, seq: 1 });
+    if (outcome.kind !== "parsed") throw new Error("expected parsed");
+    expect(outcome.parsed.message.skill).toBe("to-prd");
+    expect(outcome.parsed.toolCalls[0]?.toolName).toBe("Skill");
+  });
+
+  it("leaves skill null on a message with no Skill invocation", () => {
+    const outcome = parseLine(userLine(), { ...baseCtx, seq: 0 });
+    if (outcome.kind !== "parsed") throw new Error("expected parsed");
+    expect(outcome.parsed.message.skill).toBeNull();
+  });
+
+  it("captures agent from a subagent line's agentId field", () => {
+    const line = JSON.stringify({
+      type: "user",
+      uuid: "su-1",
+      parentUuid: null,
+      timestamp: "2026-05-10T03:56:00.000Z",
+      sessionId: "parent-sess",
+      agentId: "a555e804c9bf7ebe7",
+      isSidechain: true,
+      message: { role: "user", content: "subagent work" },
+    });
+    const outcome = parseLine(line, { ...baseCtx, seq: 0 });
+    if (outcome.kind !== "parsed") throw new Error("expected parsed");
+    expect(outcome.parsed.message.agent).toBe("a555e804c9bf7ebe7");
+  });
+
+  it("leaves agent null on a primary (non-subagent) line", () => {
+    const outcome = parseLine(userLine(), { ...baseCtx, seq: 0 });
+    if (outcome.kind !== "parsed") throw new Error("expected parsed");
+    expect(outcome.parsed.message.agent).toBeNull();
+  });
+});

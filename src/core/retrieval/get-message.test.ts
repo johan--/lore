@@ -19,6 +19,7 @@ function msg(
     branch: "main",
     model: "claude-opus-4-8",
     agent: null,
+    skill: null,
     textTruncated: false,
     ...over,
   };

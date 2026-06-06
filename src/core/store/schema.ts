@@ -55,6 +55,7 @@ export function initSchema(db: DatabaseType.Database): void {
       branch         TEXT,
       model          TEXT,
       agent          TEXT,
+      skill          TEXT,
       text           TEXT NOT NULL,
       text_truncated INTEGER NOT NULL DEFAULT 0
     );
@@ -62,6 +63,8 @@ export function initSchema(db: DatabaseType.Database): void {
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages (session_id, seq);
     CREATE INDEX IF NOT EXISTS idx_messages_file ON messages (source_file_id, seq);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages (timestamp);
+    CREATE INDEX IF NOT EXISTS idx_messages_agent ON messages (agent);
+    CREATE INDEX IF NOT EXISTS idx_messages_skill ON messages (skill);
 
     CREATE TABLE IF NOT EXISTS tool_calls (
       tool_call_id   TEXT PRIMARY KEY,

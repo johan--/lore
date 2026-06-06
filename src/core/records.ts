@@ -71,7 +71,10 @@ export const messageRecordSchema = z.object({
   project: z.string().nullable(),
   branch: z.string().nullable(),
   model: z.string().nullable(),
+  /** Subagent identity (the agent file hash) for subagent messages; null on the primary thread. */
   agent: z.string().nullable(),
+  /** Skill name if this message invoked a `Skill` tool_use; null otherwise. */
+  skill: z.string().nullable(),
   /** Human-readable text, size-capped. `textTruncated` flags elision. */
   text: z.string(),
   textTruncated: z.boolean(),

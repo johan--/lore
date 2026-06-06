@@ -29,13 +29,31 @@ export function createRecallServer(db: Store): McpServer {
         "Long text is elided; fetch the full message with get_message(full=true).",
       inputSchema: {
         query: z.string().describe("Keyword or phrase to search for."),
+        project: z.string().optional().describe("Filter to a project path (cwd)."),
+        branch: z.string().optional().describe("Filter to a git branch."),
+        agent: z.string().optional().describe("Filter to a subagent id."),
+        skill: z.string().optional().describe("Filter to messages that invoked a named skill."),
+        tool: z.string().optional().describe("Filter to messages that called a named tool."),
+        role: z.string().optional().describe("Filter by role (user, assistant, system)."),
+        model: z.string().optional().describe("Filter by model id."),
+        since: z.string().optional().describe("Inclusive ISO-8601 lower bound on timestamp."),
+        until: z.string().optional().describe("Inclusive ISO-8601 upper bound on timestamp."),
         limit: z.number().int().positive().optional().describe("Max results (default 20)."),
       },
     },
-    async ({ query, limit }) => {
-      const hits = searchMemory(db, query, { limit: limit ?? MAX_RESULTS_IN_RESPONSE }).map(
-        (hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }),
-      );
+    async ({ query, project, branch, agent, skill, tool, role, model, since, until, limit }) => {
+      const hits = searchMemory(db, query, {
+        project,
+        branch,
+        agent,
+        skill,
+        tool,
+        role,
+        model,
+        since,
+        until,
+        limit: limit ?? MAX_RESULTS_IN_RESPONSE,
+      }).map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
       return jsonContent({ count: hits.length, hits });
     },
   );

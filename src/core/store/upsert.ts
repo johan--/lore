@@ -44,16 +44,16 @@ export function upsertMessage(db: Store, rec: MessageRecord): void {
   db.prepare(
     `INSERT INTO messages
        (message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-        timestamp, project, branch, model, agent, text, text_truncated)
+        timestamp, project, branch, model, agent, skill, text, text_truncated)
      VALUES
        (@messageId, @sourceFileId, @sessionId, @uuid, @parentUuid, @seq, @role,
-        @timestamp, @project, @branch, @model, @agent, @text, @textTruncated)
+        @timestamp, @project, @branch, @model, @agent, @skill, @text, @textTruncated)
      ON CONFLICT(message_id) DO UPDATE SET
        source_file_id=excluded.source_file_id, session_id=excluded.session_id,
        uuid=excluded.uuid, parent_uuid=excluded.parent_uuid, seq=excluded.seq,
        role=excluded.role, timestamp=excluded.timestamp, project=excluded.project,
        branch=excluded.branch, model=excluded.model, agent=excluded.agent,
-       text=excluded.text, text_truncated=excluded.text_truncated`,
+       skill=excluded.skill, text=excluded.text, text_truncated=excluded.text_truncated`,
   ).run({ ...rec, textTruncated: rec.textTruncated ? 1 : 0 });
 }
 

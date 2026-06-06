@@ -21,6 +21,7 @@ function msg(
     branch: "main",
     model: "claude-opus-4-8",
     agent: null,
+    skill: null,
     textTruncated: false,
     ...over,
   };
@@ -62,6 +63,29 @@ describe("recall MCP server", () => {
     expect(payload.hits[0]?.messageId).toBe("m1");
     expect(payload.hits[0]?.sessionId).toBe("sess-1");
     expect(payload.hits[0]?.project).toBe("/repo");
+  });
+
+  it("search_memory honors a dimension filter passed over the wire", async () => {
+    const client = await connectedClient((db) => {
+      upsertMessage(
+        db,
+        msg({ messageId: "m1", uuid: "u1", seq: 0, text: "alamo here", project: "/a" }),
+      );
+      upsertMessage(
+        db,
+        msg({ messageId: "m2", uuid: "u2", seq: 1, text: "alamo there", project: "/b" }),
+      );
+    });
+    const result = await client.callTool({
+      name: "search_memory",
+      arguments: { query: "alamo", project: "/b" },
+    });
+    const payload = JSON.parse(firstText(result as never)) as {
+      count: number;
+      hits: { messageId: string }[];
+    };
+    expect(payload.count).toBe(1);
+    expect(payload.hits[0]?.messageId).toBe("m2");
   });
 
   it("get_message returns full text with full=true", async () => {
