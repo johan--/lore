@@ -48,6 +48,33 @@ describe("backfillDirectory", () => {
     expect(searchMemory(db, "beta")).toHaveLength(0); // subagent skipped in slice-1 default
   });
 
+  it("re-runs incrementally: unchanged files are skipped, only changed ones reindex", async () => {
+    const pathA = join(dir, "sess-a.jsonl");
+    const pathB = join(dir, "sess-b.jsonl");
+    await writeFile(pathA, userLine("sess-a", "u1", "alpha keyword") + "\n");
+    await writeFile(pathB, userLine("sess-b", "u2", "bravo keyword") + "\n");
+
+    const first = await backfillDirectory(db, dir);
+    expect(first.files).toBe(2);
+    expect(first.filesIndexed).toBe(2);
+    expect(first.filesSkipped).toBe(0);
+
+    // Touch only file A with an appended line; B is untouched.
+    await writeFile(
+      pathA,
+      userLine("sess-a", "u1", "alpha keyword") +
+        "\n" +
+        userLine("sess-a", "u3", "charlie added") +
+        "\n",
+    );
+
+    const second = await backfillDirectory(db, dir);
+    expect(second.files).toBe(2);
+    expect(second.filesSkipped).toBe(1); // B unchanged
+    expect(second.filesIndexed).toBe(1); // A reindexed (appended)
+    expect(searchMemory(db, "charlie")).toHaveLength(1);
+  });
+
   it("indexes subagent files when includeSubagents is set", async () => {
     const nested = join(dir, "sess-a", "subagents");
     await mkdir(nested, { recursive: true });

@@ -7,18 +7,31 @@ export interface BackfillOptions {
   /** Index subagent files too. Slice 1 default indexes primary files only. */
   includeSubagents?: boolean;
   maxTextChars?: number;
+  /** Emit a progress log line every N files processed. Default 100. */
+  progressEvery?: number;
+  /** Opt-in secret redaction over text/tool payloads. Off by default. */
+  redact?: boolean;
 }
 
 export interface BackfillResult {
+  /** Files discovered and processed (whether indexed or skipped). */
   files: number;
+  /** Files that had new content indexed (full or append). */
+  filesIndexed: number;
+  /** Files the watermark found unchanged and skipped without re-reading. */
+  filesSkipped: number;
   messages: number;
   toolCalls: number;
   skipped: number;
 }
 
 /**
- * Index every transcript under `root`. Returns rolled-up totals. Each file is
- * indexed in its own transaction so a failure on one file doesn't lose the rest.
+ * Index every transcript under `root`. Incremental by construction: the
+ * per-file watermark in `indexFile` skips unchanged files (a cheap stat + head
+ * hash), appends only new tails, and fully re-indexes rewritten files. Each file
+ * is indexed in its own transaction so a failure on one file doesn't lose the
+ * rest, and files are streamed line-by-line so memory stays bounded regardless
+ * of transcript size.
  */
 export async function backfillDirectory(
   db: Store,
@@ -30,7 +43,15 @@ export async function backfillDirectory(
     ? discovered
     : discovered.filter((f) => f.kind === "primary");
 
-  const totals: BackfillResult = { files: 0, messages: 0, toolCalls: 0, skipped: 0 };
+  const progressEvery = opts.progressEvery ?? 100;
+  const totals: BackfillResult = {
+    files: 0,
+    filesIndexed: 0,
+    filesSkipped: 0,
+    messages: 0,
+    toolCalls: 0,
+    skipped: 0,
+  };
   for (const file of targets) {
     try {
       const result = await indexFile(db, {
@@ -39,11 +60,25 @@ export async function backfillDirectory(
         agentFile: file.agentFile,
         sessionId: file.sessionId ?? undefined,
         maxTextChars: opts.maxTextChars,
+        redact: opts.redact,
       });
       totals.files++;
+      if (result.mode === "skip") {
+        totals.filesSkipped++;
+      } else {
+        totals.filesIndexed++;
+      }
       totals.messages += result.messages;
       totals.toolCalls += result.toolCalls;
       totals.skipped += result.skipped;
+      if (totals.files % progressEvery === 0) {
+        logger.info("backfill progress", {
+          processed: totals.files,
+          total: targets.length,
+          indexed: totals.filesIndexed,
+          skipped: totals.filesSkipped,
+        });
+      }
     } catch (err) {
       logger.error("failed to index file", { path: file.path, error: String(err) });
     }

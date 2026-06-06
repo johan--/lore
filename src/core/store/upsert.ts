@@ -57,6 +57,16 @@ export function upsertMessage(db: Store, rec: MessageRecord): void {
   ).run({ ...rec, textTruncated: rec.textTruncated ? 1 : 0 });
 }
 
+/**
+ * Remove every message and tool call belonging to one physical file. Used before
+ * a full re-index of a rewritten/rotated file so stale rows never linger. The
+ * messages delete fires the FTS delete trigger, keeping the index in sync.
+ */
+export function deleteFileRows(db: Store, sourceFileId: string): void {
+  db.prepare("DELETE FROM tool_calls WHERE source_file_id = ?").run(sourceFileId);
+  db.prepare("DELETE FROM messages WHERE source_file_id = ?").run(sourceFileId);
+}
+
 export function upsertToolCall(db: Store, rec: ToolCallRecord): void {
   db.prepare(
     `INSERT INTO tool_calls

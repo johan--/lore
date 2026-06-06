@@ -194,6 +194,159 @@ describe("indexFile", () => {
     expect(searchMemory(db, "collision")).toHaveLength(2);
   });
 
+  it("skips an unchanged file on re-index instead of redoing work", async () => {
+    const path = await writeFixture(`${SESSION}.jsonl`, primaryLines());
+    const first = await indexFile(db, { path });
+    expect(first.mode).toBe("full");
+
+    const second = await indexFile(db, { path });
+    expect(second.mode).toBe("skip");
+    expect(second.messages).toBe(0);
+
+    const count = db.prepare("SELECT COUNT(*) AS n FROM messages").get() as { n: number };
+    expect(count.n).toBe(2);
+    expect(searchMemory(db, "alamo")).toHaveLength(1);
+  });
+
+  it("appends only the new tail when a file grows", async () => {
+    const path = await writeFixture(`${SESSION}.jsonl`, primaryLines());
+    const first = await indexFile(db, { path });
+    expect(first.messages).toBe(2);
+
+    // Append one more user line to the existing transcript.
+    const appended =
+      primaryLines().join("\n") +
+      "\n" +
+      line({
+        type: "user",
+        uuid: "u-2",
+        parentUuid: "a-1",
+        timestamp: "2026-05-10T00:00:09.000Z",
+        sessionId: SESSION,
+        cwd: "/Users/jordanhindo/claude-lives",
+        gitBranch: "main",
+        message: { role: "user", content: "follow-up about the masada siege" },
+      }) +
+      "\n";
+    await writeFile(path, appended, "utf8");
+
+    const second = await indexFile(db, { path });
+    expect(second.mode).toBe("append");
+    expect(second.messages).toBe(1); // only the appended line
+
+    const count = db.prepare("SELECT COUNT(*) AS n FROM messages").get() as { n: number };
+    expect(count.n).toBe(3);
+    expect(searchMemory(db, "masada")).toHaveLength(1);
+    expect(searchMemory(db, "alamo")).toHaveLength(1);
+
+    const sessionRow = db
+      .prepare("SELECT message_count FROM sessions WHERE session_id = ?")
+      .get(SESSION) as { message_count: number };
+    expect(sessionRow.message_count).toBe(3);
+  });
+
+  it("fully re-indexes a rewritten file and drops the old rows", async () => {
+    const path = await writeFixture(`${SESSION}.jsonl`, primaryLines());
+    await indexFile(db, { path });
+    expect(searchMemory(db, "alamo")).toHaveLength(1);
+
+    // Rewrite the file in place with entirely different content (prefix changes).
+    const rewritten = [
+      line({
+        type: "user",
+        uuid: "r-1",
+        parentUuid: null,
+        timestamp: "2026-05-11T00:00:01.000Z",
+        sessionId: SESSION,
+        cwd: "/Users/jordanhindo/claude-lives",
+        gitBranch: "main",
+        message: { role: "user", content: "completely new thermopylae content" },
+      }),
+    ];
+    await writeFile(path, rewritten.join("\n") + "\n", "utf8");
+
+    const result = await indexFile(db, { path });
+    expect(result.mode).toBe("full");
+
+    expect(searchMemory(db, "alamo")).toHaveLength(0); // old rows gone
+    expect(searchMemory(db, "thermopylae")).toHaveLength(1);
+
+    const count = db.prepare("SELECT COUNT(*) AS n FROM messages").get() as { n: number };
+    expect(count.n).toBe(1);
+  });
+
+  it("rolls a session up across primary and subagent files, not just the last indexed", async () => {
+    const primaryPath = await writeFixture(`${SESSION}.jsonl`, primaryLines());
+    await indexFile(db, { path: primaryPath });
+
+    const agentHash = "agent-bbbb1111";
+    const subPath = await writeFixture(`${agentHash}.jsonl`, [
+      line({
+        type: "user",
+        uuid: "su-1",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:10:00.000Z",
+        sessionId: SESSION,
+        agentId: "bbbb1111",
+        isSidechain: true,
+        message: { role: "user", content: "subagent did extra alamo work" },
+      }),
+    ]);
+    await indexFile(db, {
+      path: subPath,
+      kind: "subagent",
+      agentFile: agentHash,
+      sessionId: SESSION,
+    });
+
+    const sessionRow = db
+      .prepare("SELECT message_count, last_timestamp FROM sessions WHERE session_id = ?")
+      .get(SESSION) as { message_count: number; last_timestamp: string };
+    // 2 primary + 1 subagent — the subagent index must not clobber the rollup.
+    expect(sessionRow.message_count).toBe(3);
+    expect(sessionRow.last_timestamp).toBe("2026-05-10T00:10:00.000Z");
+  });
+
+  it("redacts secrets from message text when redaction is opted in", async () => {
+    const secret = "sk-abcdEFGH1234abcdEFGH5678abcdEFGH90";
+    const lines = [
+      line({
+        type: "user",
+        uuid: "u-secret",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:01.000Z",
+        sessionId: SESSION,
+        message: { role: "user", content: `my alamo api key is ${secret} keep it safe` },
+      }),
+    ];
+    const path = await writeFixture(`${SESSION}.jsonl`, lines);
+    await indexFile(db, { path, redact: true });
+
+    const row = db.prepare("SELECT text FROM messages").get() as { text: string };
+    expect(row.text).not.toContain(secret);
+    expect(row.text).toContain("[REDACTED]");
+    expect(searchMemory(db, "alamo")).toHaveLength(1);
+  });
+
+  it("keeps secrets verbatim by default (redaction off)", async () => {
+    const secret = "sk-abcdEFGH1234abcdEFGH5678abcdEFGH90";
+    const lines = [
+      line({
+        type: "user",
+        uuid: "u-secret",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:01.000Z",
+        sessionId: SESSION,
+        message: { role: "user", content: `alamo key ${secret}` },
+      }),
+    ];
+    const path = await writeFixture(`${SESSION}.jsonl`, lines);
+    await indexFile(db, { path });
+
+    const row = db.prepare("SELECT text FROM messages").get() as { text: string };
+    expect(row.text).toContain(secret);
+  });
+
   it("truncates and flags a multi-MB line instead of crashing or returning it raw", async () => {
     const huge = "alamo " + "z".repeat(3_000_000);
     const lines = [

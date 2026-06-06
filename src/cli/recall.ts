@@ -3,13 +3,16 @@ import { pathToFileURL } from "node:url";
 import { openStore } from "../core/store/open-store.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { backfillDirectory } from "../core/indexer/backfill.js";
+import { indexFromHookPayload } from "../hooks/index-current.js";
 import { startStdioServer } from "../mcp/stdio.js";
 import { logger } from "../core/logger.js";
 
 const USAGE = `recall — full-fidelity agent session memory
 
 Usage:
-  recall index <dir> [--subagents]   Backfill transcripts under <dir> into the store
+  recall index <dir> [--subagents] [--redact]
+                                     Backfill transcripts under <dir> into the store
+  recall hook [--redact]             Index the current session from a hook payload on stdin
   recall serve                       Start the MCP server over stdio
   recall help                        Show this help
 
@@ -17,6 +20,15 @@ Env:
   RECALL_DB        Path to the SQLite store (default: ~/.recall/recall.db)
   RECALL_LOG_LEVEL debug|info|warn|error (default: info)
 `;
+
+/** Read all of stdin to a string. Used by the hook command. */
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 export async function runCli(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
@@ -29,12 +41,23 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       const includeSubagents = rest.includes("--subagents");
+      const redact = rest.includes("--redact");
       const db = openStore(resolveDbPath());
-      const totals = await backfillDirectory(db, dir, { includeSubagents });
+      const totals = await backfillDirectory(db, dir, { includeSubagents, redact });
       process.stdout.write(
         `Indexed ${totals.files} files: ${totals.messages} messages, ` +
           `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
       );
+      db.close();
+      return 0;
+    }
+    case "hook": {
+      // Lifecycle hooks must never break the harness: read the payload, index
+      // the named transcript best-effort, and always exit 0.
+      const payload = await readStdin();
+      const redact = rest.includes("--redact");
+      const db = openStore(resolveDbPath());
+      await indexFromHookPayload(db, payload, { redact });
       db.close();
       return 0;
     }
