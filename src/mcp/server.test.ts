@@ -53,9 +53,63 @@ describe("recall MCP server", () => {
       "get_message",
       "get_session",
       "list_sessions",
+      "push",
       "search_memory",
       "timeline",
     ]);
+  });
+
+  it("push ingests a normalized batch that becomes searchable over the wire", async () => {
+    const client = await connectedClient(() => {});
+    const result = await client.callTool({
+      name: "push",
+      arguments: {
+        sourceFile: {
+          sourceFileId: "codex-file-1",
+          source: "codex",
+          sessionId: "codex-sess-1",
+          kind: "primary",
+          agentFile: null,
+          path: "/rollouts/codex-file-1.jsonl",
+          byteOffset: 0,
+          lineCount: 0,
+          prefixSha256: null,
+          mtime: null,
+          indexedAt: "2026-05-10T00:00:00.000Z",
+        },
+        messages: [
+          {
+            messageId: "m1",
+            sourceFileId: "codex-file-1",
+            sessionId: "codex-sess-1",
+            uuid: "u1",
+            parentUuid: null,
+            seq: 0,
+            role: "user",
+            timestamp: "2026-05-10T00:00:00.000Z",
+            project: "/work",
+            branch: "main",
+            model: null,
+            agent: null,
+            skill: null,
+            text: "pushed over the wire from codex",
+            textTruncated: false,
+          },
+        ],
+      },
+    });
+    const payload = JSON.parse(firstText(result as never)) as {
+      sourceFileId: string;
+      messages: number;
+    };
+    expect(payload.messages).toBe(1);
+
+    const search = await client.callTool({
+      name: "search_memory",
+      arguments: { query: "codex", source: "codex" },
+    });
+    const hits = JSON.parse(firstText(search as never)) as { hits: { messageId: string }[] };
+    expect(hits.hits.map((h) => h.messageId)).toEqual(["m1"]);
   });
 
   it("search_memory returns a hit with provenance over stdio contract", async () => {

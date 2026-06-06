@@ -9,6 +9,12 @@ import { getSession } from "../core/retrieval/get-session.js";
 import { listSessions } from "../core/retrieval/list-sessions.js";
 import { timeline } from "../core/retrieval/timeline.js";
 import { elide } from "../core/budget.js";
+import { pushRecords } from "../core/ingest/push.js";
+import {
+  messageRecordSchema,
+  sourceFileRecordSchema,
+  toolCallRecordSchema,
+} from "../core/records.js";
 
 const SERVER_NAME = "recall";
 const SERVER_VERSION = "0.1.0";
@@ -230,6 +236,36 @@ export function createRecallServer(db: Store): McpServer {
         limit: limit ?? MAX_RESULTS_IN_RESPONSE,
       }).map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
       return jsonContent({ count: hits.length, hits });
+    },
+  );
+
+  server.registerTool(
+    "push",
+    {
+      description:
+        "Ingest a batch of already-normalized records directly into the store — the universal " +
+        "live-write path for any harness that produces records itself instead of being read off " +
+        "disk. Provide one source_file plus its messages (and optional tool_calls). Idempotent: " +
+        "re-pushing the same ids updates in place. Records are validated; a malformed batch is " +
+        "rejected whole.",
+      inputSchema: {
+        sourceFile: sourceFileRecordSchema.describe(
+          "The physical transcript file this batch belongs to.",
+        ),
+        messages: z.array(messageRecordSchema).describe("Normalized messages in the batch."),
+        toolCalls: z
+          .array(toolCallRecordSchema)
+          .optional()
+          .describe("Normalized tool calls referenced by the messages."),
+      },
+    },
+    async ({ sourceFile, messages, toolCalls }) => {
+      try {
+        const result = pushRecords(db, { sourceFile, messages, toolCalls: toolCalls ?? [] });
+        return jsonContent(result);
+      } catch (err) {
+        return jsonContent({ error: "invalid_batch", detail: String(err) });
+      }
     },
   );
 

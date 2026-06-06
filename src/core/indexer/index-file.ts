@@ -6,7 +6,6 @@ import type { Store } from "../store/open-store.js";
 import {
   deleteFileRows,
   upsertMessage,
-  upsertSession,
   upsertSourceFile,
   upsertToolCall,
 } from "../store/upsert.js";
@@ -14,6 +13,7 @@ import { parseLine } from "../../adapters/claude-code/parse-line.js";
 import type { SourceFileKind } from "../records.js";
 import { logger } from "../logger.js";
 import { redactSecrets } from "../redact.js";
+import { recomputeSession } from "../store/recompute-session.js";
 import { planReindex, prefixHash, PREFIX_BYTES, type PriorWatermark } from "./watermark.js";
 
 export interface IndexFileOptions {
@@ -67,37 +67,6 @@ function readWatermark(db: Store, sourceFileId: string): PriorWatermark | null {
     prefixSha256: row.prefix_sha256,
     mtime: row.mtime,
   };
-}
-
-/** Recompute a session's rollup from the messages table so multi-file sessions
- * (primary + subagents) and append re-indexes never carry per-run stale counts. */
-function recomputeSession(db: Store, sessionId: string): void {
-  const row = db
-    .prepare(
-      `SELECT
-         (SELECT project FROM messages WHERE session_id = @s AND project IS NOT NULL ORDER BY seq DESC LIMIT 1) AS project,
-         (SELECT branch  FROM messages WHERE session_id = @s AND branch  IS NOT NULL ORDER BY seq DESC LIMIT 1) AS branch,
-         MIN(timestamp) AS first_timestamp,
-         MAX(timestamp) AS last_timestamp,
-         COUNT(*)       AS message_count
-       FROM messages WHERE session_id = @s`,
-    )
-    .get({ s: sessionId }) as {
-    project: string | null;
-    branch: string | null;
-    first_timestamp: string | null;
-    last_timestamp: string | null;
-    message_count: number;
-  };
-  upsertSession(db, {
-    sessionId,
-    source: "claude-code",
-    project: row.project,
-    branch: row.branch,
-    firstTimestamp: row.first_timestamp,
-    lastTimestamp: row.last_timestamp,
-    messageCount: row.message_count,
-  });
 }
 
 /**
