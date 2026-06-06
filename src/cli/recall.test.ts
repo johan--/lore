@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "./recall.js";
@@ -88,5 +88,39 @@ describe("recall CLI", () => {
     const code = await runCli(["index", dir, "--source", "nope"]);
     spy.mockRestore();
     expect(code).toBe(1);
+  });
+
+  it("`setup --home <dir>` indexes detected sources and prints the registration guide", async () => {
+    const projDir = join(dir, ".claude", "projects", "proj");
+    await mkdir(projDir, { recursive: true });
+    const transcript =
+      JSON.stringify({
+        type: "user",
+        uuid: "u1",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:00.000Z",
+        sessionId: "sess-setup",
+        cwd: "/repo",
+        gitBranch: "main",
+        message: { role: "user", content: "setup verification keyword" },
+      }) + "\n";
+    await writeFile(join(projDir, "sess.jsonl"), transcript);
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["setup", "--home", dir]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("claude-code");
+    expect(out).toContain("claude mcp add recall");
+
+    const db = openStore(dbPath);
+    expect(searchMemory(db, "keyword").length).toBeGreaterThan(0);
+    db.close();
   });
 });

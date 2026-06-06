@@ -8,10 +8,15 @@ import { startStdioServer } from "../mcp/stdio.js";
 import { logger } from "../core/logger.js";
 import { getAdapter, adapterSources } from "../adapters/registry.js";
 import { sampleFormat } from "../adapters/sample-format.js";
+import { runSetup } from "../setup/run-setup.js";
+import { renderRegistrationGuide } from "../setup/registration-guide.js";
 
 const USAGE = `recall — full-fidelity agent session memory
 
 Usage:
+  recall setup [--home <dir>]        Detect known harnesses on this machine, index
+                                     their history, verify search, and print how to
+                                     register recall in your MCP client
   recall index <dir> [--source <name>] [--subagents] [--redact]
                                      Backfill transcripts under <dir> into the store
                                      (--source picks an adapter; default claude-code)
@@ -64,6 +69,33 @@ export async function runCli(argv: string[]): Promise<number> {
           `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
       );
       db.close();
+      return 0;
+    }
+    case "setup": {
+      const homeIdx = rest.indexOf("--home");
+      const home = homeIdx >= 0 ? rest[homeIdx + 1] : undefined;
+      const db = openStore(resolveDbPath());
+      const result = await runSetup(db, home);
+      db.close();
+      if (result.indexed.length === 0) {
+        process.stdout.write(
+          "No known harness transcripts found on this machine.\n" +
+            `Known sources: ${adapterSources().join(", ")}.\n` +
+            "If your harness writes transcripts elsewhere, run `recall index <dir> --source <name>`.\n\n",
+        );
+      } else {
+        const lines = result.indexed
+          .map(
+            (s) =>
+              `  ${s.source}: ${s.files} files, ${s.messages} messages, ${s.toolCalls} tool calls`,
+          )
+          .join("\n");
+        process.stdout.write(
+          `Indexed your history into the recall store:\n${lines}\n` +
+            `Search self-check: ${result.verified ? `OK (${result.verifyHits} hit)` : "no hits yet"}\n\n`,
+        );
+      }
+      process.stdout.write(renderRegistrationGuide() + "\n");
       return 0;
     }
     case "sample": {
