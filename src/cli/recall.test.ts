@@ -60,4 +60,33 @@ describe("recall CLI", () => {
     spy.mockRestore();
     expect(code).toBe(1);
   });
+
+  it("`sample <dir>` prints a format summary an onboarding agent can act on", async () => {
+    const lines = [
+      JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "hi" } }),
+      JSON.stringify({ type: "summary", summary: "meta" }),
+    ];
+    await writeFile(join(dir, "roll.jsonl"), lines.join("\n") + "\n");
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sample", dir]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("roll.jsonl");
+    expect(out).toContain("user");
+    expect(out).toContain("summary");
+  });
+
+  it("`index --source <name>` rejects an unknown source without writing", async () => {
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["index", dir, "--source", "nope"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
 });

@@ -6,12 +6,16 @@ import { backfillDirectory } from "../core/indexer/backfill.js";
 import { indexFromHookPayload } from "../hooks/index-current.js";
 import { startStdioServer } from "../mcp/stdio.js";
 import { logger } from "../core/logger.js";
+import { getAdapter, adapterSources } from "../adapters/registry.js";
+import { sampleFormat } from "../adapters/sample-format.js";
 
 const USAGE = `recall — full-fidelity agent session memory
 
 Usage:
-  recall index <dir> [--subagents] [--redact]
+  recall index <dir> [--source <name>] [--subagents] [--redact]
                                      Backfill transcripts under <dir> into the store
+                                     (--source picks an adapter; default claude-code)
+  recall sample <dir>                Summarize a transcript dir's on-disk format
   recall hook [--redact]             Index the current session from a hook payload on stdin
   recall serve                       Start the MCP server over stdio
   recall help                        Show this help
@@ -42,13 +46,40 @@ export async function runCli(argv: string[]): Promise<number> {
       }
       const includeSubagents = rest.includes("--subagents");
       const redact = rest.includes("--redact");
+      const sourceIdx = rest.indexOf("--source");
+      const sourceName = sourceIdx >= 0 ? rest[sourceIdx + 1] : undefined;
+      const adapter = sourceName ? getAdapter(sourceName) : undefined;
+      if (sourceName && !adapter) {
+        process.stderr.write(
+          `error: unknown source "${sourceName}". ` +
+            `Known sources: ${adapterSources().join(", ")}\n\n` +
+            USAGE,
+        );
+        return 1;
+      }
       const db = openStore(resolveDbPath());
-      const totals = await backfillDirectory(db, dir, { includeSubagents, redact });
+      const totals = await backfillDirectory(db, dir, { includeSubagents, redact, adapter });
       process.stdout.write(
         `Indexed ${totals.files} files: ${totals.messages} messages, ` +
           `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
       );
       db.close();
+      return 0;
+    }
+    case "sample": {
+      const dir = rest.find((a) => !a.startsWith("--"));
+      if (!dir) {
+        process.stderr.write("error: `recall sample` requires a <dir>\n\n" + USAGE);
+        return 1;
+      }
+      const sample = await sampleFormat(dir);
+      process.stdout.write(
+        `Format sample of ${sample.root}\n` +
+          `  files:        ${sample.fileCount}\n` +
+          `  sampleFile:   ${sample.sampleFile ?? "(none)"}\n` +
+          `  line types:   ${sample.lineTypes.join(", ") || "(none)"}\n` +
+          `  top-level keys: ${sample.topLevelKeys.join(", ") || "(none)"}\n`,
+      );
       return 0;
     }
     case "hook": {
