@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { openStore, type Store } from "../store/open-store.js";
-import { upsertMessage, upsertToolCall } from "../store/upsert.js";
+import { upsertMessage, upsertToolCall, upsertSourceFile } from "../store/upsert.js";
 import { searchMemory } from "./search-memory.js";
-import type { MessageRecord, ToolCallRecord } from "../records.js";
+import type { MessageRecord, ToolCallRecord, SourceFileRecord } from "../records.js";
 
 function msg(
   over: Partial<MessageRecord> & Pick<MessageRecord, "messageId" | "text">,
@@ -115,6 +115,48 @@ describe("searchMemory — dimension filters", () => {
       ...over,
     };
   }
+
+  function sourceFile(
+    over: Partial<SourceFileRecord> &
+      Pick<SourceFileRecord, "sourceFileId" | "sessionId" | "source">,
+  ): SourceFileRecord {
+    return {
+      kind: "primary",
+      agentFile: null,
+      path: `/transcripts/${over.sourceFileId}.jsonl`,
+      byteOffset: 0,
+      lineCount: 0,
+      prefixSha256: null,
+      mtime: null,
+      indexedAt: "2026-05-10T00:00:00.000Z",
+      ...over,
+    };
+  }
+
+  it("narrows by source namespace via the file join", () => {
+    const db = freshStore();
+    upsertSourceFile(
+      db,
+      sourceFile({ sourceFileId: "sf-1", sessionId: "sess-1", source: "claude-code" }),
+    );
+    upsertSourceFile(
+      db,
+      sourceFile({ sourceFileId: "sf-2", sessionId: "sess-2", source: "codex" }),
+    );
+    upsertMessage(db, msg({ messageId: "m1", uuid: "u1", seq: 0, text: "alamo here" }));
+    upsertMessage(
+      db,
+      msg({
+        messageId: "m2",
+        uuid: "u2",
+        seq: 0,
+        text: "alamo there",
+        sessionId: "sess-2",
+        sourceFileId: "sf-2",
+      }),
+    );
+    expect(searchMemory(db, "alamo", { source: "codex" }).map((h) => h.messageId)).toEqual(["m2"]);
+  });
 
   it("narrows by project", () => {
     const db = freshStore();

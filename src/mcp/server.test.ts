@@ -43,11 +43,19 @@ function firstText(result: { content: { type: string; text?: string }[] }): stri
 }
 
 describe("recall MCP server", () => {
-  it("advertises search_memory and get_message", async () => {
+  it("advertises the full retrieval surface", async () => {
     const client = await connectedClient(() => {});
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    expect(names).toEqual(["get_message", "search_memory"]);
+    expect(names).toEqual([
+      "find_relevant",
+      "get_context",
+      "get_message",
+      "get_session",
+      "list_sessions",
+      "search_memory",
+      "timeline",
+    ]);
   });
 
   it("search_memory returns a hit with provenance over stdio contract", async () => {
@@ -105,5 +113,38 @@ describe("recall MCP server", () => {
     });
     const detail = JSON.parse(firstText(full as never)) as { text: string };
     expect(detail.text).toBe(big);
+  });
+
+  it("get_context returns a neighbor window flagging the anchor over the wire", async () => {
+    const client = await connectedClient((db) => {
+      for (let i = 0; i < 4; i++) {
+        upsertMessage(db, msg({ messageId: `m${i}`, uuid: `u${i}`, seq: i, text: `line ${i}` }));
+      }
+    });
+    const result = await client.callTool({
+      name: "get_context",
+      arguments: { message_id: "m2", before: 1, after: 1 },
+    });
+    const payload = JSON.parse(firstText(result as never)) as {
+      messages: { messageId: string; isAnchor: boolean }[];
+    };
+    expect(payload.messages.map((m) => m.messageId)).toEqual(["m1", "m2", "m3"]);
+    expect(payload.messages.find((m) => m.isAnchor)?.messageId).toBe("m2");
+  });
+
+  it("find_relevant returns ranked hits over the wire", async () => {
+    const client = await connectedClient((db) => {
+      upsertMessage(db, msg({ messageId: "m1", text: "alamo remembered" }));
+    });
+    const result = await client.callTool({
+      name: "find_relevant",
+      arguments: { query: "alamo" },
+    });
+    const payload = JSON.parse(firstText(result as never)) as {
+      count: number;
+      hits: { messageId: string }[];
+    };
+    expect(payload.count).toBe(1);
+    expect(payload.hits[0]?.messageId).toBe("m1");
   });
 });

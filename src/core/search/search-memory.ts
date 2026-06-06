@@ -20,6 +20,8 @@ export interface SearchHit {
 export interface SearchOptions {
   project?: string;
   branch?: string;
+  /** Harness namespace (e.g. "claude-code", "codex"); a file-level attribute. */
+  source?: string;
   agent?: string;
   skill?: string;
   /** Tool name; matches messages that issued a tool_call with this name. */
@@ -86,6 +88,10 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
     where.push("m.timestamp <= ?");
     params.push(opts.until);
   }
+  if (typeof opts.source === "string") {
+    where.push("sf.source = ?");
+    params.push(opts.source);
+  }
   if (typeof opts.tool === "string") {
     where.push(
       "EXISTS (SELECT 1 FROM tool_calls tc WHERE tc.message_id = m.message_id AND tc.tool_name = ?)",
@@ -101,6 +107,7 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
               -bm25(messages_fts) AS score
          FROM messages_fts
          JOIN messages m ON m.rowid = messages_fts.rowid
+         LEFT JOIN source_files sf ON sf.source_file_id = m.source_file_id
         WHERE ${where.join(" AND ")}
         ORDER BY score DESC
         LIMIT ?`,
