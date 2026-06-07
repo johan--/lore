@@ -60,8 +60,6 @@ The deterministic recipe the agent follows lives in
 [`AGENT-ONBOARD.md`](AGENT-ONBOARD.md). Prefer to drive it yourself? The one
 command that does the indexing half is `lore setup` (below).
 
-> The fact that Lore can onboard _itself_, on a machine it's never seen, is the
-> demo. If an agent can stand it up from a paste, it works.
 
 ## 🛠️ Install it yourself
 
