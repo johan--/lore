@@ -53,7 +53,7 @@ command that does the indexing half is `lore setup` (below).
 ## 🛠️ Install it yourself
 
 ```bash
-npm install -g loremcp     # puts the `lore` command on your PATH
+npm install -g @jordanhindo/lore   # puts the `lore` command on your PATH
 ```
 
 Requires Node 22+. That's the whole install. `lore setup` (below) takes it from

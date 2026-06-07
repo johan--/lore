@@ -1,5 +1,5 @@
 {
-  "name": "loremcp",
+  "name": "@jordanhindo/lore",
   "version": "0.1.0",
   "description": "Lightweight MCP for infinite agent memory. Any agent, any session, anytime.",
   "type": "module",

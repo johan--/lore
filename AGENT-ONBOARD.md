@@ -14,7 +14,7 @@ Do not skip the verify step. "I ran the commands" is not proof; a green
 If you just want it running, the published package is the fast path:
 
 ```bash
-npm install -g loremcp     # puts the `lore` command on PATH
+npm install -g @jordanhindo/lore   # puts the `lore` command on PATH
 ```
 
 If you were pointed at the source repo instead (you are contributing, or you
