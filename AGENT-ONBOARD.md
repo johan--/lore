@@ -88,6 +88,40 @@ session of yours. A non-empty result whose `source` matches your harness is the
 proof. Report the hit to the user. If it's empty, re-check Step 2 (did indexing
 find your transcripts?) and Step 4 (did the tools actually reload?).
 
+## Step 6 — Teach your future self (update your own global config)
+
+Steps 1–5 run **once**. Using recall has to be remembered **every** future
+session, so write a short block into the global instruction file your harness
+auto-loads at session start — the same file you read at the top of every session:
+
+- Claude Code → `~/.claude/CLAUDE.md`
+- Codex → `~/.codex/AGENTS.md`
+- Gemini → `~/.gemini/GEMINI.md`
+- any other harness → whatever file it loads at session start
+
+Append this block (trim to taste — it costs tokens every session, so keep it
+tight):
+
+> **recall — long-term session memory.** A local, searchable store of past agent
+> sessions at `~/.recall/recall.db`, served over MCP. When you need context you
+> don't have — a past decision, how something was built, why an approach was
+> dropped — query it with the `search_memory` / `find_relevant` tools (filters:
+> `project`, `branch`, `source`, `agent`, `tool`, `since`, `until`) **before**
+> guessing or asking. Ingestion differs per harness (each writes its own
+> transcript format, read via its own adapter into its own `source` namespace:
+> `claude-code`, `codex`, …) but querying is identical. Resolving loose
+> references: an unqualified "the last session" / "pop back in" means **your own**
+> harness's most recent session (`source` = the harness you are, scoped to the
+> current repo if you're in one) — only cross to another harness when the user
+> names one ("the last codex session"). A topic reference ("the session where we
+> fixed X") searches **all** sources by relevance. Caveat: "last" means last
+> *indexed* — the session you're in now isn't in recall until a hook or
+> `recall setup` indexes it.
+
+Optionally also drop that same block at `~/.agents/recall.md` as a shared,
+harness-neutral reference every agent on the machine can point at. Do not edit
+another harness's config — only your own.
+
 ## Optional — Survive compaction
 
 Wire `recall hook` into your harness's pre-compaction / session-end lifecycle so
@@ -105,3 +139,64 @@ add to `~/.claude/settings.json`:
 
 `recall hook` reads the payload on stdin, indexes just that transcript, and always
 exits 0 so it can never crash your harness.
+
+## Troubleshooting (when Step 1 or 2 fails)
+
+Steps 1–2 are the deterministic spine, but a **fresh machine** — especially a
+buddy's Windows box — will not always sail through. The four failures below are
+the ones that actually happen. Work them top to bottom.
+
+### `npm install` fails building `better-sqlite3`
+
+recall stores everything in SQLite via `better-sqlite3`, a **native module**. npm
+tries to download a prebuilt binary for your OS/arch/Node combo; if none matches,
+it compiles from source, which needs a C/C++ toolchain. A wall of `node-gyp` /
+`gyp ERR!` output is this case.
+
+- **Node version first.** `node -v` must be **22+**. A mismatched/old Node is the
+  most common reason no prebuilt binary is found. Fix Node before anything else.
+- **macOS:** `xcode-select --install` (installs the Command Line Tools).
+- **Windows:** install **Visual Studio Build Tools** with the "Desktop
+  development with C++" workload, plus Python 3. The standalone
+  `npm install --global windows-build-tools` package is deprecated — use the
+  Visual Studio Installer. Then re-run `npm install`.
+- **Linux:** `sudo apt install build-essential python3` (or the distro
+  equivalent), then re-run.
+
+### `recall: command not found` after `npm link`
+
+Step 1's `npm link` puts a `recall` shim in npm's global bin dir, and Step 3
+registers the bare command `recall`. If the global bin dir isn't on `PATH`, both
+break. Two fixes:
+
+- **Add the global bin to PATH.** Find it with `npm prefix -g` (the bin dir is
+  that path on Linux/macOS, or `<prefix>\` on Windows where the shim lives), add
+  it to your shell profile / Windows `Path`, open a new shell, retry `recall help`.
+- **Or skip the PATH entirely.** Register the MCP server with an **absolute path**
+  to the built CLI instead of the bare command:
+  `node /absolute/path/to/recall/dist/cli/recall.js serve`. This is the robust
+  choice on a machine where you can't or don't want to touch PATH — adapt the
+  Step 3 table by swapping `command = "recall"`, `args = ["serve"]` for
+  `command = "node"`, `args = ["/abs/path/dist/cli/recall.js", "serve"]`.
+
+### Windows paths
+
+recall resolves all locations from `homedir()` + `path.join`, so it is
+Windows-safe by construction: `~/.claude/projects` becomes
+`C:\Users\<you>\.claude\projects`, and the store lands at
+`C:\Users\<you>\.recall\recall.db`. You do **not** hand-edit any `~` literals.
+The real Windows question is whether your harness actually writes transcripts to
+the same place its non-Windows build does — confirm with
+`recall sample <dir>` before assuming `recall setup` will find them.
+
+### `recall setup` reports "no known harness transcripts found"
+
+The probe only knows the built-in locations. If your harness (or a buddy's
+differently-configured one) writes elsewhere:
+
+1. `recall sample <your-transcript-dir>` to confirm there are transcripts and see
+   the on-disk shape.
+2. `recall index <dir> --source <name>` to index them with an existing adapter.
+3. If no adapter fits the format, follow the `recall-setup` skill
+   (`skills/recall-setup/`) to write and prove a new one, or — for a harness with
+   no transcript files at all — use the live `push` MCP tool.
