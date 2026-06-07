@@ -1,6 +1,6 @@
 # 📖 Lore
 
-### Shared memory for every AI agent you use.
+### Shared, full-fidelity, session history for every AI agent you use.
 
 **Any agent. Any session. Anytime.**
 
