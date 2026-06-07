@@ -6,7 +6,7 @@ import { openStore, type Store } from "../store/open-store.js";
 import { backfillDirectory } from "./backfill.js";
 import { searchMemory } from "../search/search-memory.js";
 import type { SourceAdapter } from "../../adapters/contract.js";
-import { computeMessageId } from "../../adapters/claude-code/parse-line.js";
+import { computeMessageId } from "../records.js";
 
 let dir: string;
 let db: Store;

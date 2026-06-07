@@ -1,13 +1,13 @@
-import { createHash } from "node:crypto";
-import { type MessageRecord, type MessageRole, type ToolCallRecord } from "../../core/records.js";
+import {
+  computeMessageId,
+  type MessageRecord,
+  type MessageRole,
+  type ToolCallRecord,
+} from "../../core/records.js";
 import type { ParseContext, ParseOutcome } from "../contract.js";
 
 const DEFAULT_MAX_TEXT_CHARS = 100_000;
 const PARSEABLE_ROLES = new Set<MessageRole>(["user", "assistant", "system"]);
-
-export function computeMessageId(sourceFileId: string, uuid: string, seq: number): string {
-  return createHash("sha256").update(`${sourceFileId}\u0000${uuid}\u0000${seq}`).digest("hex");
-}
 
 interface ContentBlock {
   type?: string;

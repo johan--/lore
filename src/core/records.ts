@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 /**
@@ -80,6 +81,16 @@ export const messageRecordSchema = z.object({
   textTruncated: z.boolean(),
 });
 export type MessageRecord = z.infer<typeof messageRecordSchema>;
+
+/**
+ * The synthetic message id: a stable hash of (sourceFileId, uuid, seq). It is
+ * stable across re-indexing of the same line but distinct when seq differs, so
+ * the uuid-collision cases the schema warns about never overwrite distinct
+ * messages. Every adapter calls this so all sources mint ids the same way.
+ */
+export function computeMessageId(sourceFileId: string, uuid: string, seq: number): string {
+  return createHash("sha256").update(`${sourceFileId}\u0000${uuid}\u0000${seq}`).digest("hex");
+}
 
 /**
  * A tool invocation. `tool_use` and `tool_result` blocks are paired within file

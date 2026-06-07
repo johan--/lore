@@ -1,6 +1,10 @@
-import { type MessageRecord, type MessageRole, type ToolCallRecord } from "../../core/records.js";
+import {
+  computeMessageId,
+  type MessageRecord,
+  type MessageRole,
+  type ToolCallRecord,
+} from "../../core/records.js";
 import type { FileMetadata, ParseContext, ParseOutcome } from "../contract.js";
-import { computeMessageId } from "../claude-code/parse-line.js";
 
 const DEFAULT_MAX_TEXT_CHARS = 100_000;
 

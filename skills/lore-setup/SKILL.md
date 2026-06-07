@@ -97,7 +97,7 @@ Deterministic procedure:
    transcript files; `parseLine` turns one raw line into either
    `{ kind: "parsed", parsed: { message, toolCalls } }` or
    `{ kind: "skipped", reason }` for meta/unknown lines. Reuse `computeMessageId`
-   from the claude-code parser so message ids stay stable
+   from `src/core/records.ts` so message ids stay stable
    (`hash(sourceFileId + uuid + seq)`).
    - `parseLine` is **stateless per line**. If a harness uses a flat timeline
      where tool calls and their outputs are separate lines (Codex does), map each
