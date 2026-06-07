@@ -1,6 +1,7 @@
 {
   "name": "@jordanhindo/lore",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.jordanhindo/lore",
   "description": "Lightweight MCP for infinite agent memory. Any agent, any session, anytime.",
   "type": "module",
   "license": "MIT",
@@ -34,7 +35,7 @@
     "AGENT-ONBOARD.md"
   ],
   "bin": {
-    "lore": "./dist/cli/lore.js"
+    "lore": "dist/cli/lore.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
