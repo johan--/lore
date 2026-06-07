@@ -7,9 +7,10 @@
 Your agents forget everything the moment a session compacts or ends. You spend an
 hour getting one deep into a gnarly problem, the window fills up, and suddenly
 it's a stranger again. Sure, compaction helps, untill you're 10 compats into a session. 
-So you start a new session. 
-Re-explain the thing you already explained. Beat your workflow back into the agents, just for the ctx window to refill. 
-The work isn't gone, it's sitting right there on disk. It's just unreachable.
+/n So you start a new session. 
+/n Re-explain the thing you already explained. 
+/n Beat your workflow back into the agents, just for the ctx window to refill. 
+/n The work isn't gone, it's sitting right there on disk. It's just unreachable.
 
 Lore fixes that. It quietly indexes every session your agents have ever had and
 hands it back, fully searchable, right where they work. An agent can pull up a
