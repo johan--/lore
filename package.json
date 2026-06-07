@@ -4,11 +4,16 @@
   "description": "Lightweight MCP for infinite agent memory. Any agent, any session, anytime.",
   "type": "module",
   "license": "MIT",
+  "files": [
+    "dist",
+    "skills",
+    "AGENT-ONBOARD.md"
+  ],
   "bin": {
     "lore": "./dist/cli/lore.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --check .",
