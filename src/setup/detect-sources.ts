@@ -8,6 +8,12 @@ interface KnownLocation {
   source: Source;
   /** Path segments under the home dir where this harness writes transcripts. */
   segments: string[];
+  /**
+   * Locations with the same group are alternatives for the same harness. The
+   * first location with discoverable files wins so setup does not double-index
+   * compatibility archives and the current session tree.
+   */
+  group?: string;
 }
 
 /**
@@ -17,7 +23,8 @@ interface KnownLocation {
  */
 const KNOWN_LOCATIONS: KnownLocation[] = [
   { source: "claude-code", segments: [".claude", "projects"] },
-  { source: "codex", segments: [".codex", "archived_sessions"] },
+  { source: "codex", segments: [".codex", "sessions"], group: "codex-history" },
+  { source: "codex", segments: [".codex", "archived_sessions"], group: "codex-history" },
 ];
 
 export interface DetectedSource {
@@ -36,13 +43,16 @@ export interface DetectedSource {
  */
 export async function detectSources(home: string = homedir()): Promise<DetectedSource[]> {
   const found: DetectedSource[] = [];
+  const matchedGroups = new Set<string>();
   for (const location of KNOWN_LOCATIONS) {
+    if (location.group && matchedGroups.has(location.group)) continue;
     const adapter = getAdapter(location.source);
     if (!adapter) continue;
     const dir = join(home, ...location.segments);
     const files = await adapter.discover(dir);
     if (files.length === 0) continue;
     found.push({ source: location.source, dir, fileCount: files.length });
+    if (location.group) matchedGroups.add(location.group);
   }
   return found;
 }

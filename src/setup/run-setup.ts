@@ -33,7 +33,7 @@ export async function runSetup(db: Store, home?: string): Promise<SetupResult> {
   for (const found of detected) {
     const adapter = getAdapter(found.source);
     if (!adapter) continue;
-    const totals = await backfillDirectory(db, found.dir, { adapter });
+    const totals = await backfillDirectory(db, found.dir, { adapter, progressEvery: 25 });
     indexed.push({
       source: found.source,
       files: totals.files,

@@ -28,16 +28,25 @@ recall setup
 ```
 
 This probes the machine for known harnesses (Claude Code at `~/.claude/projects`,
-Codex at `~/.codex/archived_sessions`), indexes everything it finds into the
+Codex at `~/.codex/sessions`, with `~/.codex/archived_sessions` as a legacy
+fallback), indexes everything it finds into the
 shared store at `~/.recall/recall.db`, runs a search to prove retrieval works, and
 prints the registration guidance from Step 3.
 
 - If it reports **no sources found**, your harness writes transcripts somewhere
-  else (or writes none). Run `recall sample <your-transcript-dir>` to inspect the
-  format, then `recall index <dir> --source <name>`. If no adapter fits, follow
+  else (or writes none). For Codex Desktop, first check `~/.codex/sessions`; older
+  builds may also have `~/.codex/archived_sessions`. Run
+  `recall sample <your-transcript-dir>` to inspect the format, then
+  `recall index <dir> --source <name>`. If no adapter fits, follow
   the `recall-setup` skill (`skills/recall-setup/`) to write and prove one, or use
   the live `push` MCP tool if your harness has no files at all.
-- If the search self-check says **OK**, indexing and retrieval both work. Proceed.
+- If the search self-check says **OK**, indexing and retrieval both work. For each
+  source you care about, sanity-check the per-source line: a first run should show
+  non-zero messages, while a repeat run may show `0 messages` because all files
+  were already indexed and skipped by the watermark.
+- Codex Desktop histories can be multi-GB. A first full-fidelity pass over
+  `~/.codex/sessions` can take several minutes; progress logs are normal, and
+  repeat runs should be much faster because unchanged files are skipped.
 
 ## Step 3 — Register recall in YOUR client
 

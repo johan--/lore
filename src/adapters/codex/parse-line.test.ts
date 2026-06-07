@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCodexLine } from "./parse-line.js";
+import { getCodexFileMetadata, parseCodexLine } from "./parse-line.js";
 import type { ParseContext } from "../contract.js";
 
 const ctx: ParseContext = {
@@ -41,6 +41,53 @@ describe("parseCodexLine", () => {
     const out = parseCodexLine(line, ctx);
     if (out.kind !== "parsed") throw new Error("expected parsed");
     expect(out.parsed.message.role).toBe("system");
+  });
+
+  it("extracts file-level metadata from Codex session_meta", () => {
+    const metadata = getCodexFileMetadata([
+      JSON.stringify({
+        type: "session_meta",
+        payload: {
+          cwd: "/repo/project",
+          model: "gpt-5.5",
+          agent_nickname: "Ada",
+        },
+      }),
+    ]);
+
+    expect(metadata).toEqual({
+      project: "/repo/project",
+      branch: null,
+      model: "gpt-5.5",
+      agent: "Ada",
+    });
+  });
+
+  it("attaches file-level metadata to parsed messages", () => {
+    const line = JSON.stringify({
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "metadata should travel" }],
+      },
+    });
+
+    const out = parseCodexLine(line, {
+      ...ctx,
+      fileMetadata: {
+        project: "/repo/project",
+        branch: "main",
+        model: "gpt-5.5",
+        agent: "Ada",
+      },
+    });
+
+    if (out.kind !== "parsed") throw new Error("expected parsed");
+    expect(out.parsed.message.project).toBe("/repo/project");
+    expect(out.parsed.message.branch).toBe("main");
+    expect(out.parsed.message.model).toBe("gpt-5.5");
+    expect(out.parsed.message.agent).toBe("Ada");
   });
 
   it("turns a function_call into an assistant message plus a tool call", () => {

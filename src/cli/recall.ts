@@ -87,7 +87,7 @@ export async function runCli(argv: string[]): Promise<number> {
         const lines = result.indexed
           .map(
             (s) =>
-              `  ${s.source}: ${s.files} files, ${s.messages} messages, ${s.toolCalls} tool calls`,
+              `  ${s.source}: ${s.files} files processed, ${s.messages} messages indexed this run, ${s.toolCalls} tool calls indexed this run`,
           )
           .join("\n");
         process.stdout.write(

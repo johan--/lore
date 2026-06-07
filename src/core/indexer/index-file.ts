@@ -131,6 +131,10 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
     pending.push({ line, seq });
     seq++;
   }
+  const fileMetadata = adapter.getFileMetadata?.(
+    pending.map((row) => row.line),
+    sourceFileId,
+  );
 
   const apply = db.transaction((rows: Pending[]) => {
     // A full re-index replaces the file's rows; clear stale ones first so a
@@ -142,6 +146,7 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
         sessionId,
         seq: lineSeq,
         source: adapter.source,
+        fileMetadata,
         maxTextChars: opts.maxTextChars,
       });
       if (outcome.kind === "skipped") {

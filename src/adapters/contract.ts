@@ -1,5 +1,12 @@
 import type { ParsedLine, Source, SourceFileKind } from "../core/records.js";
 
+export interface FileMetadata {
+  project?: string | null;
+  branch?: string | null;
+  model?: string | null;
+  agent?: string | null;
+}
+
 /**
  * The contract every source adapter implements. An adapter is the only
  * source-specific code in recall: it knows how to find a harness's transcript
@@ -16,6 +23,8 @@ export interface SourceAdapter {
   readonly source: Source;
   /** Walk a root directory and return the transcript files to ingest. */
   discover(root: string): Promise<DiscoveredFile[]>;
+  /** Optional file-level metadata pass for sources that put cwd/model in meta lines. */
+  getFileMetadata?(rawLines: string[], sourceFileId: string): FileMetadata;
   /** Parse one raw transcript line into normalized records, or skip it. */
   parseLine(rawLine: string, ctx: ParseContext): ParseOutcome;
 }
@@ -40,6 +49,7 @@ export interface ParseContext {
   sessionId: string;
   seq: number;
   source: Source;
+  fileMetadata?: FileMetadata;
   /** Cap on stored text/tool payload chars. Adapters default this if unset. */
   maxTextChars?: number;
 }

@@ -1,5 +1,5 @@
 import { type MessageRecord, type MessageRole, type ToolCallRecord } from "../../core/records.js";
-import type { ParseContext, ParseOutcome } from "../contract.js";
+import type { FileMetadata, ParseContext, ParseOutcome } from "../contract.js";
 import { computeMessageId } from "../claude-code/parse-line.js";
 
 const DEFAULT_MAX_TEXT_CHARS = 100_000;
@@ -17,6 +17,14 @@ interface CodexPayload {
   arguments?: string;
   call_id?: string;
   output?: unknown;
+  id?: string;
+  cwd?: string;
+  model?: string;
+  agent_nickname?: string;
+  agent_role?: string;
+  agent_path?: string;
+  source?: unknown;
+  base_instructions?: { text?: string };
 }
 
 function cap(value: string, max: number): { text: string; truncated: boolean } {
@@ -45,6 +53,41 @@ function stringifyOutput(output: unknown): string {
   return JSON.stringify(output);
 }
 
+function parseJsonLine(
+  rawLine: string,
+): { type?: string; timestamp?: string; payload?: CodexPayload } | null {
+  try {
+    return JSON.parse(rawLine) as { type?: string; timestamp?: string; payload?: CodexPayload };
+  } catch {
+    return null;
+  }
+}
+
+function agentFromSessionMeta(payload: CodexPayload): string | null {
+  if (typeof payload.agent_nickname === "string" && payload.agent_nickname.length > 0) {
+    return payload.agent_nickname;
+  }
+  if (typeof payload.agent_path === "string" && payload.agent_path.length > 0) {
+    return payload.agent_path;
+  }
+  return null;
+}
+
+export function getCodexFileMetadata(rawLines: string[]): FileMetadata {
+  for (const line of rawLines) {
+    const parsed = parseJsonLine(line);
+    if (parsed?.type !== "session_meta") continue;
+    const payload = parsed.payload ?? {};
+    return {
+      project: typeof payload.cwd === "string" ? payload.cwd : null,
+      branch: null,
+      model: typeof payload.model === "string" ? payload.model : null,
+      agent: agentFromSessionMeta(payload),
+    };
+  }
+  return {};
+}
+
 /**
  * Parse one Codex rollout line into a normalized message (+ tool calls). Codex
  * uses a flat timeline: `message`, `function_call`, and `function_call_output`
@@ -56,10 +99,8 @@ function stringifyOutput(output: unknown): string {
 export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome {
   const maxChars = ctx.maxTextChars ?? DEFAULT_MAX_TEXT_CHARS;
 
-  let parsed: { type?: string; timestamp?: string; payload?: CodexPayload };
-  try {
-    parsed = JSON.parse(rawLine);
-  } catch {
+  const parsed = parseJsonLine(rawLine);
+  if (!parsed) {
     return { kind: "skipped", reason: "json-parse-error" };
   }
 
@@ -78,10 +119,10 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     parentUuid: null,
     seq: ctx.seq,
     timestamp,
-    project: null,
-    branch: null,
-    model: null,
-    agent: null,
+    project: ctx.fileMetadata?.project ?? null,
+    branch: ctx.fileMetadata?.branch ?? null,
+    model: ctx.fileMetadata?.model ?? null,
+    agent: ctx.fileMetadata?.agent ?? null,
     skill: null,
   };
 
