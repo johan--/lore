@@ -133,6 +133,41 @@ cheap.
 Every search tool takes the same dimension filters: `project`, `branch`,
 `source`, `agent`, `skill`, `tool`, `role`, `model`, `since`, `until`, `limit`.
 
+### What a search returns
+
+Your agent calls `search_memory` with a query (plus any filters) and gets back a
+count and a ranked list of hits. Each hit carries the matched text and full
+provenance, so the agent knows _where_ the memory came from and can pull the rest
+with `get_message`:
+
+```jsonc
+// search_memory({ query: "fts tokenizer", source: "claude-code", limit: 2 })
+{
+  "count": 2,
+  "hits": [
+    {
+      "messageId": "9f3c…a71b",          // synthetic, stable across re-index
+      "sessionId": "0c1d2e3f-…",
+      "sourceFileId": "claude-code:…",
+      "role": "assistant",
+      "timestamp": "2026-06-05T18:22:41.103Z",
+      "project": "/Users/you/lore",
+      "branch": "main",
+      "model": "claude-opus-4",
+      "agent": null,
+      "score": 11.27,                       // higher is a better match (bm25)
+      "text": "Switched the FTS5 tokenizer to unicode61 with tokenchars '_-.' so getUserById and foo.bar.ts stay whole…",
+      "textTruncated": false
+    }
+    // …one more hit
+  ]
+}
+```
+
+Long messages come back elided with a marker telling the agent how to fetch the
+full text via `get_message(message_id, full=true)` — so one giant transcript can
+never blow the context window.
+
 ## 🪄 Survive compaction
 
 Compaction is the moment memory matters most, so catch the session right before
