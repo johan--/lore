@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createRecallServer } from "./server.js";
+import { createLoreServer } from "./server.js";
 import { openStore } from "../core/store/open-store.js";
 import { upsertMessage } from "../core/store/upsert.js";
 import type { MessageRecord } from "../core/records.js";
@@ -30,7 +30,7 @@ function msg(
 async function connectedClient(setup: (db: ReturnType<typeof openStore>) => void): Promise<Client> {
   const db = openStore(":memory:");
   setup(db);
-  const server = createRecallServer(db);
+  const server = createLoreServer(db);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -42,7 +42,7 @@ function firstText(result: { content: { type: string; text?: string }[] }): stri
   return block?.text ?? "";
 }
 
-describe("recall MCP server", () => {
+describe("lore MCP server", () => {
   it("advertises the full retrieval surface", async () => {
     const client = await connectedClient(() => {});
     const tools = await client.listTools();

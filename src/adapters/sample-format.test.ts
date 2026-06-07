@@ -7,7 +7,7 @@ import { sampleFormat } from "./sample-format.js";
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "recall-sample-"));
+  dir = await mkdtemp(join(tmpdir(), "lore-sample-"));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });

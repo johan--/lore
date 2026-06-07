@@ -9,7 +9,7 @@ export interface FileMetadata {
 
 /**
  * The contract every source adapter implements. An adapter is the only
- * source-specific code in recall: it knows how to find a harness's transcript
+ * source-specific code in lore: it knows how to find a harness's transcript
  * files on disk (`discover`) and how to turn one raw line into normalized
  * records (`parseLine`). Everything downstream — store, search, MCP — operates
  * on the normalized records and never sees a harness quirk.

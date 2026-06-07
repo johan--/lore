@@ -10,7 +10,7 @@ let dir: string;
 let db: Store;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "recall-idx-"));
+  dir = await mkdtemp(join(tmpdir(), "lore-idx-"));
   db = openStore(":memory:");
 });
 

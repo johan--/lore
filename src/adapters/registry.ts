@@ -4,7 +4,7 @@ import { codexAdapter } from "./codex/adapter.js";
 
 /**
  * The adapter registry maps a source name to the adapter that ingests it. It is
- * how the CLI selects a parser (`recall index --source codex`) and how a new
+ * how the CLI selects a parser (`lore index --source codex`) and how a new
  * harness becomes a first-class citizen: drop in an adapter that passes the
  * conformance harness, add it here, and every code path that resolves by source
  * picks it up. Onboarding is a registration, not a core change.

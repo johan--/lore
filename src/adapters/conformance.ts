@@ -37,7 +37,7 @@ const CTX: ParseContext = {
 /**
  * Run an adapter through the universal contract checks and return a structured
  * report. Pure (no test framework, no process exit) so it can back both a vitest
- * assertion and the `/recall-setup` self-onboarding flow, where a freshly written
+ * assertion and the `/lore-setup` self-onboarding flow, where a freshly written
  * adapter must prove itself before it is registered.
  */
 export async function checkAdapterConformance(

@@ -1,10 +1,10 @@
 # Issue 1 — Walking skeleton: index a transcript → search via MCP
 
-Type: AFK · Blocked by: None — can start immediately · Plan: docs/PRD-recall.md
+Type: AFK · Blocked by: None — can start immediately · Plan: docs/PRD-lore.md
 
 ## What to build
 
-The thinnest end-to-end path through every layer of `recall`, plus project scaffolding. After this slice, you can point `recall` at a directory of Claude Code transcripts, index a **primary** session file, and get a keyword hit back through the MCP server with full provenance — proving the whole pipeline works.
+The thinnest end-to-end path through every layer of `lore`, plus project scaffolding. After this slice, you can point `lore` at a directory of Claude Code transcripts, index a **primary** session file, and get a keyword hit back through the MCP server with full provenance — proving the whole pipeline works.
 
 Scope:
 - **Scaffold**: Node 22+ / TypeScript (strict, NodeNext), Vitest, ESLint, Prettier. `npm run check` = typecheck + lint + test. Named exports only, no `any`, kebab-case files, colocated tests, structured logger.
@@ -12,7 +12,7 @@ Scope:
 - **Store**: SQLite (WAL + busy_timeout). Tables per PRD: `source_files`, `sessions`, `messages` (synthetic `message_id = hash(source_file_id+uuid+seq)` PK; `uuid`/`parent_uuid` plain columns), `tool_calls`, `messages_fts` (FTS5, **trigger-driven** sync, code-aware tokenizer with `tokenchars '_-.'`). Idempotent upsert on `message_id`. `text` and tool_result stored size-capped with elision marker.
 - **Search**: `searchMemory(query, {limit?})` — `bm25()` ranked, with FTS query sanitization (`-`,`+`,`:`,quotes don't throw).
 - **MCP server**: stdio; exposes `search_memory` and `get_message(message_id, {full?})`. Every response respects a char/result-count budget; oversized content elided with `…[fetch full via get_message(message_id, full=true)]`.
-- **CLI**: `recall index <dir>` backfill over a directory (primary files only in this slice).
+- **CLI**: `lore index <dir>` backfill over a directory (primary files only in this slice).
 
 ## Acceptance criteria
 

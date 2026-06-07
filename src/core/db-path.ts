@@ -3,17 +3,17 @@ import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 
 /**
- * Resolve the store location. Honors `RECALL_DB` (absolute path), else defaults
- * to `~/.recall/recall.db`. Creates the parent directory if needed. The DB lives
+ * Resolve the store location. Honors `LORE_DB` (absolute path), else defaults
+ * to `~/.lore/lore.db`. Creates the parent directory if needed. The DB lives
  * outside any repo and is gitignored — transcript content never leaves the box.
  */
 export function resolveDbPath(): string {
-  const fromEnv = process.env.RECALL_DB;
+  const fromEnv = process.env.LORE_DB;
   if (fromEnv && fromEnv.trim().length > 0) {
     ensureParent(fromEnv);
     return fromEnv;
   }
-  const path = join(homedir(), ".recall", "recall.db");
+  const path = join(homedir(), ".lore", "lore.db");
   ensureParent(path);
   return path;
 }

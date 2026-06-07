@@ -11,23 +11,23 @@ import { sampleFormat } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
 
-const USAGE = `recall — full-fidelity agent session memory
+const USAGE = `lore — full-fidelity agent session memory
 
 Usage:
-  recall setup [--home <dir>]        Detect known harnesses on this machine, index
+  lore setup [--home <dir>]        Detect known harnesses on this machine, index
                                      their history, verify search, and print how to
-                                     register recall in your MCP client
-  recall index <dir> [--source <name>] [--subagents] [--redact]
+                                     register lore in your MCP client
+  lore index <dir> [--source <name>] [--subagents] [--redact]
                                      Backfill transcripts under <dir> into the store
                                      (--source picks an adapter; default claude-code)
-  recall sample <dir>                Summarize a transcript dir's on-disk format
-  recall hook [--redact]             Index the current session from a hook payload on stdin
-  recall serve                       Start the MCP server over stdio
-  recall help                        Show this help
+  lore sample <dir>                Summarize a transcript dir's on-disk format
+  lore hook [--redact]             Index the current session from a hook payload on stdin
+  lore serve                       Start the MCP server over stdio
+  lore help                        Show this help
 
 Env:
-  RECALL_DB        Path to the SQLite store (default: ~/.recall/recall.db)
-  RECALL_LOG_LEVEL debug|info|warn|error (default: info)
+  LORE_DB        Path to the SQLite store (default: ~/.lore/lore.db)
+  LORE_LOG_LEVEL debug|info|warn|error (default: info)
 `;
 
 /** Read all of stdin to a string. Used by the hook command. */
@@ -46,7 +46,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case "index": {
       const dir = rest.find((a) => !a.startsWith("--"));
       if (!dir) {
-        process.stderr.write("error: `recall index` requires a <dir>\n\n" + USAGE);
+        process.stderr.write("error: `lore index` requires a <dir>\n\n" + USAGE);
         return 1;
       }
       const includeSubagents = rest.includes("--subagents");
@@ -81,7 +81,7 @@ export async function runCli(argv: string[]): Promise<number> {
         process.stdout.write(
           "No known harness transcripts found on this machine.\n" +
             `Known sources: ${adapterSources().join(", ")}.\n` +
-            "If your harness writes transcripts elsewhere, run `recall index <dir> --source <name>`.\n\n",
+            "If your harness writes transcripts elsewhere, run `lore index <dir> --source <name>`.\n\n",
         );
       } else {
         const lines = result.indexed
@@ -91,7 +91,7 @@ export async function runCli(argv: string[]): Promise<number> {
           )
           .join("\n");
         process.stdout.write(
-          `Indexed your history into the recall store:\n${lines}\n` +
+          `Indexed your history into the lore store:\n${lines}\n` +
             `Search self-check: ${result.verified ? `OK (${result.verifyHits} hit)` : "no hits yet"}\n\n`,
         );
       }
@@ -101,7 +101,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case "sample": {
       const dir = rest.find((a) => !a.startsWith("--"));
       if (!dir) {
-        process.stderr.write("error: `recall sample` requires a <dir>\n\n" + USAGE);
+        process.stderr.write("error: `lore sample` requires a <dir>\n\n" + USAGE);
         return 1;
       }
       const sample = await sampleFormat(dir);

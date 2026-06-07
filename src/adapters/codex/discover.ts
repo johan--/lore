@@ -5,7 +5,7 @@ import type { DiscoveredFile } from "../contract.js";
 /**
  * Walk a directory tree for Codex transcripts. Codex writes one file per session
  * as `rollout-<timestamp>-<uuid>.jsonl` under `~/.codex/archived_sessions` (and
- * `~/.codex/sessions`). We match the `rollout-` prefix so pointing recall at the
+ * `~/.codex/sessions`). We match the `rollout-` prefix so pointing lore at the
  * whole `~/.codex` dir doesn't sweep in unrelated logs (`history.jsonl`,
  * `session_index.jsonl`, …). Subagent forks are marked inside the file's
  * `session_meta`, not by directory, so discovery tags every file `primary`.

@@ -1,6 +1,6 @@
-# PRD — `recall`: full-fidelity, searchable agent memory
+# PRD — `lore`: full-fidelity, searchable agent memory
 
-> Status: ready-for-agent · Created 2026-06-06 · Repo: `~/recall` (standalone, destined for its own GitHub repo)
+> Status: ready-for-agent · Created 2026-06-06 · Repo: `~/lore` (standalone, destined for its own GitHub repo)
 
 ## Problem Statement
 
@@ -15,7 +15,7 @@ The user (Jordan) framed this as building the agent's *literal memory* — "not 
 
 ## Solution
 
-`recall` is a standalone, well-typed memory system that indexes raw agent session transcripts into a searchable store and exposes retrieval over the Model Context Protocol (MCP), so any MCP-compatible agent can query its own past with full fidelity and provenance.
+`lore` is a standalone, well-typed memory system that indexes raw agent session transcripts into a searchable store and exposes retrieval over the Model Context Protocol (MCP), so any MCP-compatible agent can query its own past with full fidelity and provenance.
 
 From the agent's perspective:
 
@@ -52,15 +52,15 @@ The architecture separates a **universal retrieval core** (SQLite + FTS5 + searc
 21. As the user, I want a one-shot backfill command, so that my existing gigabytes of transcripts become searchable on first install.
 22. As the user, I want incremental indexing that only parses the new tail of append-only files, so that re-indexing is fast and cheap.
 23. As the user, I want the indexer to validate transcript lines at the boundary and skip unknown line types without crashing, so that the indexer is robust to format drift.
-24. As the user, I want `recall` to run as a standalone MCP server with no dependency on any other service, so that my memory works even when other tooling is down.
-25. As the user, I want `recall` usable by any MCP-compatible client, so that other agents (Cursor, Cline, Claude Desktop) can search the same memory.
+24. As the user, I want `lore` to run as a standalone MCP server with no dependency on any other service, so that my memory works even when other tooling is down.
+25. As the user, I want `lore` usable by any MCP-compatible client, so that other agents (Cursor, Cline, Claude Desktop) can search the same memory.
 26. As the user, I want ingestion behind a source-adapter interface, so that I can later add adapters for other agents and unify all my history in one store.
 27. As the user, I want the whole system to be its own repo, so that I can publish it on GitHub and others can use it.
 28. As the user, I want everything extremely well-typed (Zod at boundaries, no `any`), so that the memory store stays trustworthy and maintainable.
 29. As a coding agent, I want to query semantically (phase 3), so that I can recall things I can't express as exact keywords.
-30. As the user, I want `recall` to optionally feed notable sessions into a compiled knowledge wiki (phase 3), so that raw memory and compiled knowledge reinforce each other.
+30. As the user, I want `lore` to optionally feed notable sessions into a compiled knowledge wiki (phase 3), so that raw memory and compiled knowledge reinforce each other.
 31. As a coding agent, I want subagent (sidechain) work attributed to the session that spawned it, so that I can trace what a delegated executor did within a larger task.
-32. As a coding agent, I want every search/replay response to stay within a size budget, with large content elided behind an on-demand fetch, so that recall never overflows my context or crashes the client.
+32. As a coding agent, I want every search/replay response to stay within a size budget, with large content elided behind an on-demand fetch, so that Lore never overflows my context or crashes the client.
 33. As the user, I want messages that share a `uuid` across different transcript files to all be preserved, so that no real message is ever silently overwritten.
 34. As the user, I want code identifiers, file paths, and snake_case terms to be findable by search, so that searching technical history actually works.
 35. As the user, I want the memory database kept strictly local and never committed, with synthetic fixtures only, so that publishing the project never leaks secrets or PII from my transcripts.
@@ -113,7 +113,7 @@ Idempotency keys on `message_id` (the composite hash), so re-indexing never dupl
 Every result carries full provenance (`session_id`, `timestamp`, `project`, `branch`, `agent`, `skill`, `model`, plus `message_id` and `source_file_id` so any hit is precisely addressable).
 
 - `search_memory(query, { project?, branch?, agent?, skill?, tool?, role?, model?, since?, until?, limit? })` — FTS keyword search with every dimension as an optional filter, ranked by `bm25()`. Primary tool.
-- `find_relevant(query, { since?, until?, limit? })` — **blended `bm25() * recency`** ranking (recency = `1 / (1 + age_hours)`). Note: the Daemion prior art ranks `find_relevant` by recency *only*, which surfaces fresh-but-irrelevant turns — `recall` fixes this by keeping the relevance term.
+- `find_relevant(query, { since?, until?, limit? })` — **blended `bm25() * recency`** ranking (recency = `1 / (1 + age_hours)`). Note: the Daemion prior art ranks `find_relevant` by recency *only*, which surfaces fresh-but-irrelevant turns — `lore` fixes this by keeping the relevance term.
 - `get_context(message_id, { before?, after? })` — return the N turns surrounding a hit, **scoped to the same `(source_file_id, session_id)`** (context never silently crosses a file/session boundary). The tool that makes verbatim recall usable.
 - `get_session(session_id, { from?, limit? })` — paginated replay of a whole session in order, **always size-budgeted** (see below).
 - `get_message(message_id, { full? })` — fetch one message; `full: true` returns the un-elided `raw_json`. This is the on-demand escape hatch so large content is never forced into a default response.
@@ -175,7 +175,7 @@ Transcripts contain secrets, `.env` dumps, tokens, and PII (gateway tokens, Tail
 
 ### Distribution
 
-- Standalone repo `~/recall`, no runtime dependency on any external service; destined for its own public GitHub repo.
+- Standalone repo `~/lore`, no runtime dependency on any external service; destined for its own public GitHub repo.
 - Runs as an MCP server (stdio first; HTTP optional later) usable by any MCP-compatible client.
 - Indexes `~/.claude/projects/` globally; agents working in any project can search any project's history.
 
@@ -194,15 +194,15 @@ Transcripts contain secrets, `.env` dumps, tokens, and PII (gateway tokens, Tail
 **Low priority:**
 - **MCP server** — contract/smoke test that each tool is registered with the right input schema and dispatches to the correct search function.
 
-**Prior art:** Daemion's `src/core/history-tools.ts` (the five RLM-style history tools and the recency-weighting formula) and its FTS5-backed `storage.ts` are the design template, and their colocated `*.test.ts` files (e.g. `history-tools.test.ts`) are the testing-style reference. `recall` reimplements these cleanly and decoupled, with no gateway dependency.
+**Prior art:** Daemion's `src/core/history-tools.ts` (the five RLM-style history tools and the recency-weighting formula) and its FTS5-backed `storage.ts` are the design template, and their colocated `*.test.ts` files (e.g. `history-tools.test.ts`) are the testing-style reference. `lore` reimplements these cleanly and decoupled, with no gateway dependency.
 
 ## Out of Scope
 
 - **Embeddings / semantic search** — phase 3. v1 is FTS5 + provenance + `get_context`.
 - **Non–Claude-Code adapters** (Codex, Cursor, …) — the adapter interface is built now, but only the Claude Code adapter ships in v1.
 - **Wiki digest integration** — auto-writing notable sessions into a compiled knowledge wiki is phase 3.
-- **A UI** — `recall` is an MCP server + CLI; no graphical interface.
-- **Editing or mutating transcripts** — `recall` is read-only over source files; it never modifies `~/.claude/projects/`.
+- **A UI** — `lore` is an MCP server + CLI; no graphical interface.
+- **Editing or mutating transcripts** — `lore` is read-only over source files; it never modifies `~/.claude/projects/`.
 - **HTTP/remote transport and multi-machine sync** — stdio MCP only in v1.
 - **Auth / multi-user** — single-user, local-first.
 
@@ -211,7 +211,7 @@ Transcripts contain secrets, `.env` dumps, tokens, and PII (gateway tokens, Tail
 - The emotional core of the project (the user's framing: "a treat from me to you") is three capabilities: **verbatim recall**, **provenance on every hit**, and **fetch-the-surrounding-context**. If a scope cut is ever needed, protect those three first.
 - The append-only nature of JSONL is what makes incremental indexing cheap and the `PreCompact` hook reliable — lean on it.
 - Keeping `raw_json` on every message row means future schema additions (new columns, new derived fields) can be backfilled from the store itself without re-reading source files.
-- The two memory systems are complementary by design: `recall` = raw, verbatim, lossless; a knowledge wiki = compiled, lossy, conclusions. Phase 3's digest is the bridge between them.
+- The two memory systems are complementary by design: `lore` = raw, verbatim, lossless; a knowledge wiki = compiled, lossy, conclusions. Phase 3's digest is the bridge between them.
 
 ## Critique Adjudication Log (2026-06-06)
 

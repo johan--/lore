@@ -1,24 +1,24 @@
 /**
- * The client-agnostic registration guide printed at the end of `recall setup`.
- * recall never edits another tool's config file (every client's format differs
+ * The client-agnostic registration guide printed at the end of `lore setup`.
+ * lore never edits another tool's config file (every client's format differs
  * and silently rewriting them is unsafe), so the running agent applies the block
  * for its own harness and tells the user the one manual step — the reload — that
  * a running session cannot do for itself.
  */
 export function renderRegistrationGuide(): string {
   return [
-    "Next: register the recall MCP server in YOUR client, then reload it.",
+    "Next: register the lore MCP server in YOUR client, then reload it.",
     "",
     "Claude Code:",
-    "  claude mcp add recall -- recall serve",
+    "  claude mcp add lore -- lore serve",
     "",
     "Codex (~/.codex/config.toml):",
-    "  [mcp_servers.recall]",
-    '  command = "recall"',
+    "  [mcp_servers.lore]",
+    '  command = "lore"',
     '  args = ["serve"]',
     "",
     "Cursor / Cline / other MCP clients (stdio server entry):",
-    '  { "mcpServers": { "recall": { "command": "recall", "args": ["serve"] } } }',
+    '  { "mcpServers": { "lore": { "command": "lore", "args": ["serve"] } } }',
     "",
     "Reload so the client picks up the new tools:",
     "  - Most clients only load MCP tools at session start — start a NEW session.",

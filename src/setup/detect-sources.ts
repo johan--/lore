@@ -18,7 +18,7 @@ interface KnownLocation {
 
 /**
  * Where each built-in harness writes its transcripts, relative to $HOME. These
- * are the directories `recall setup` probes so a user never has to know the
+ * are the directories `lore setup` probes so a user never has to know the
  * on-disk layout of their own tools.
  */
 const KNOWN_LOCATIONS: KnownLocation[] = [

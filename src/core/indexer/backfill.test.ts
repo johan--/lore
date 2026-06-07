@@ -12,7 +12,7 @@ let dir: string;
 let db: Store;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "recall-backfill-"));
+  dir = await mkdtemp(join(tmpdir(), "lore-backfill-"));
   db = openStore(":memory:");
 });
 

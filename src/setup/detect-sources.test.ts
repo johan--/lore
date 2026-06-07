@@ -8,7 +8,7 @@ describe("detectSources", () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), "recall-detect-"));
+    home = await mkdtemp(join(tmpdir(), "lore-detect-"));
   });
 
   afterEach(async () => {

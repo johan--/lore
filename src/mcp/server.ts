@@ -16,7 +16,7 @@ import {
   toolCallRecordSchema,
 } from "../core/records.js";
 
-const SERVER_NAME = "recall";
+const SERVER_NAME = "lore";
 const SERVER_VERSION = "0.1.0";
 const MAX_RESULTS_IN_RESPONSE = 20;
 
@@ -25,10 +25,10 @@ function jsonContent(payload: unknown): { content: { type: "text"; text: string 
 }
 
 /**
- * Build the recall MCP server over an open store. Kept transport-agnostic so it
+ * Build the lore MCP server over an open store. Kept transport-agnostic so it
  * can be wired to stdio in production and to an in-memory transport in tests.
  */
-export function createRecallServer(db: Store): McpServer {
+export function createLoreServer(db: Store): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
   server.registerTool(

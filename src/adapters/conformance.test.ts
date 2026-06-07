@@ -33,7 +33,7 @@ describe("checkAdapterConformance", () => {
 describe("checkAdapterConformance — discovery", () => {
   let dir: string;
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "recall-conformance-"));
+    dir = await mkdtemp(join(tmpdir(), "lore-conformance-"));
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });

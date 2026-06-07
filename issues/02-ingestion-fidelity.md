@@ -1,6 +1,6 @@
 # Issue 2 — Full ingestion fidelity: nested layout, uuid-collision correctness, every dimension
 
-Type: AFK · Blocked by: Issue 1 (walking skeleton) · Plan: docs/PRD-recall.md
+Type: AFK · Blocked by: Issue 1 (walking skeleton) · Plan: docs/PRD-lore.md
 
 ## What to build
 

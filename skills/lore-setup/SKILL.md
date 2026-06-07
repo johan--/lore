@@ -1,28 +1,28 @@
 ---
-name: recall-setup
-description: Use when onboarding a new harness (Codex, Cursor, Cline, any MCP client or any tool that writes session transcripts) into recall, the full-fidelity session-memory store. Walks an agent deterministically from "recall is installed" to "my own past sessions are searchable", including the case where recall has no adapter for the harness yet.
+name: lore-setup
+description: Use when onboarding a new harness (Codex, Cursor, Cline, any MCP client or any tool that writes session transcripts) into lore, the full-fidelity session-memory store. Walks an agent deterministically from "lore is installed" to "my own past sessions are searchable", including the case where lore has no adapter for the harness yet.
 ---
 
-# recall-setup
+# lore-setup
 
-This skill makes onboarding a harness into `recall` **deterministic** — an agent
+This skill makes onboarding a harness into `lore` **deterministic** — an agent
 should be able to follow it cold, with no judgement calls, and end with its own
-transcripts searchable over MCP. Self-setup is the proof that recall works for a
+transcripts searchable over MCP. Self-setup is the proof that lore works for a
 new harness.
 
-`recall` is a local-only SQLite + FTS5 store of agent session transcripts,
+`lore` is a local-only SQLite + FTS5 store of agent session transcripts,
 served over MCP. Each harness writes into its own `source` namespace
 (`claude-code`, `codex`, …). There is one store; any MCP client reads all of it.
 
 ## Decision: which ingestion path?
 
-There are exactly two ways content enters recall. Pick by answering one question:
+There are exactly two ways content enters lore. Pick by answering one question:
 
 > **Does this harness already write transcript files to disk?**
 
 - **Yes — on-disk transcripts (PULL path).** Most CLI harnesses do. Claude Code
   writes `~/.claude/projects/**/*.jsonl`; Codex writes
-  `~/.codex/archived_sessions/*.jsonl`. Use `recall index`. If recall already has
+  `~/.codex/archived_sessions/*.jsonl`. Use `lore index`. If lore already has
   an adapter for the format, you are done in one command. If not, you write a
   small adapter (Step 3b) and prove it with the conformance harness before using
   it.
@@ -37,13 +37,13 @@ now on.
 ## Step 1 — Install and build
 
 ```bash
-cd /path/to/recall
+cd /path/to/lore
 npm install
 npm run build
-npm link          # optional: puts `recall` on PATH
+npm link          # optional: puts `lore` on PATH
 ```
 
-Requires Node 22+. Verify: `recall help` prints usage.
+Requires Node 22+. Verify: `lore help` prints usage.
 
 ## Step 2 — Look at the format
 
@@ -51,14 +51,14 @@ If the harness writes files to disk, point the sampler at the directory before
 doing anything else. This is non-destructive and tells you the on-disk shape:
 
 ```bash
-recall sample <transcript-dir>
+lore sample <transcript-dir>
 ```
 
 It prints the file count, a sample file path, the distinct line `type` values,
 and the distinct top-level JSON keys. Use this to decide whether an existing
 adapter fits or you need a new one.
 
-- If `source` is already a known adapter (run `recall index <dir> --source ?` —
+- If `source` is already a known adapter (run `lore index <dir> --source ?` —
   an unknown source lists the known ones), skip to Step 4 and just index.
 - Otherwise continue to Step 3.
 
@@ -67,10 +67,10 @@ adapter fits or you need a new one.
 ### 3a. Known harness, on-disk transcripts
 
 ```bash
-recall index <transcript-dir>                      # default: claude-code adapter
-recall index <transcript-dir> --source <name>      # pick a registered adapter
-recall index <transcript-dir> --subagents          # include subagent files
-recall index <transcript-dir> --redact             # opt-in credential redaction
+lore index <transcript-dir>                      # default: claude-code adapter
+lore index <transcript-dir> --source <name>      # pick a registered adapter
+lore index <transcript-dir> --subagents          # include subagent files
+lore index <transcript-dir> --redact             # opt-in credential redaction
 ```
 
 Re-running is cheap — unchanged files are skipped by the per-file watermark.
@@ -109,7 +109,7 @@ Deterministic procedure:
      adapter.
 3. **Prove it before registering.** Call `checkAdapterConformance` from
    `src/adapters/conformance.ts` with fixtures from the real format (use a line
-   you saw via `recall sample`). It returns a structured `ConformanceReport`;
+   you saw via `lore sample`). It returns a structured `ConformanceReport`;
    `report.passed` must be `true`. The checks: declares a known source, parses a
    representative line into a schema-valid message, skips a meta line, produces a
    stable-yet-seq-sensitive message id, and (if you pass `sampleRoot`) discovers
@@ -119,7 +119,7 @@ Deterministic procedure:
 5. `npm run check` must pass (typecheck + lint + format + test). Add a colocated
    `*.test.ts` for the adapter and one conformance test (model on
    `src/adapters/conformance.test.ts`).
-6. Index: `recall index <dir> --source <name>`.
+6. Index: `lore index <dir> --source <name>`.
 
 ### 3c. Live harness, no transcript files — push
 
@@ -141,20 +141,20 @@ does not duplicate it. The session rollup is recomputed automatically.
 ## Step 4 — Serve over MCP
 
 ```bash
-recall serve            # MCP server over stdio
+lore serve            # MCP server over stdio
 ```
 
 Point the client at it. For Claude Code, `~/.claude/settings.json`:
 
 ```json
-{ "mcpServers": { "recall": { "command": "recall", "args": ["serve"] } } }
+{ "mcpServers": { "lore": { "command": "lore", "args": ["serve"] } } }
 ```
 
 For any other MCP client, add an stdio server entry with the same command/args.
 
 ## Step 5 — Survive compaction (optional but recommended)
 
-Wire `recall hook` into the harness's pre-compaction / session-end lifecycle. It
+Wire `lore hook` into the harness's pre-compaction / session-end lifecycle. It
 reads the hook payload on stdin, extracts the transcript path, indexes just that
 file, and always exits 0 so it can never crash the harness.
 
@@ -173,10 +173,10 @@ harness is onboarded.
 
 ## Checklist
 
-- [ ] `recall help` works (installed + built)
-- [ ] `recall sample <dir>` ran; format understood
+- [ ] `lore help` works (installed + built)
+- [ ] `lore sample <dir>` ran; format understood
 - [ ] Ingestion path chosen (PULL/index or PUSH)
 - [ ] If new adapter: source added to `SOURCES`, `checkAdapterConformance` green, registered, `npm run check` passes
 - [ ] Content indexed/pushed
-- [ ] `recall serve` wired into the MCP client
+- [ ] `lore serve` wired into the MCP client
 - [ ] `search_memory` returns hits for the new `source`

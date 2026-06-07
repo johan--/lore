@@ -22,7 +22,7 @@ describe("runSetup", () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), "recall-setup-"));
+    home = await mkdtemp(join(tmpdir(), "lore-setup-"));
   });
 
   afterEach(async () => {

@@ -7,7 +7,7 @@ import { discoverTranscripts } from "./discover.js";
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "recall-disc-"));
+  root = await mkdtemp(join(tmpdir(), "lore-disc-"));
 });
 
 afterEach(async () => {

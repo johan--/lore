@@ -1,7 +1,7 @@
 import type DatabaseType from "better-sqlite3";
 
 /**
- * Schema for the recall store.
+ * Schema for the lore store.
  *
  * Three distinct IDs, per the corrected data model:
  *  - `source_file_id` — a physical transcript file (the ingestion/watermark unit)

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCli } from "./recall.js";
+import { runCli } from "./lore.js";
 import { openStore } from "../core/store/open-store.js";
 import { searchMemory } from "../core/search/search-memory.js";
 
@@ -11,19 +11,19 @@ let dbPath: string;
 let prevDb: string | undefined;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "recall-cli-"));
-  dbPath = join(dir, "recall.db");
-  prevDb = process.env.RECALL_DB;
-  process.env.RECALL_DB = dbPath;
+  dir = await mkdtemp(join(tmpdir(), "lore-cli-"));
+  dbPath = join(dir, "lore.db");
+  prevDb = process.env.LORE_DB;
+  process.env.LORE_DB = dbPath;
 });
 
 afterEach(async () => {
-  if (prevDb === undefined) delete process.env.RECALL_DB;
-  else process.env.RECALL_DB = prevDb;
+  if (prevDb === undefined) delete process.env.LORE_DB;
+  else process.env.LORE_DB = prevDb;
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("recall CLI", () => {
+describe("lore CLI", () => {
   it("`index <dir>` backfills transcripts into the store", async () => {
     const transcript =
       JSON.stringify({
@@ -117,7 +117,7 @@ describe("recall CLI", () => {
     expect(code).toBe(0);
     const out = writes.join("");
     expect(out).toContain("claude-code");
-    expect(out).toContain("claude mcp add recall");
+    expect(out).toContain("claude mcp add lore");
 
     const db = openStore(dbPath);
     expect(searchMemory(db, "keyword").length).toBeGreaterThan(0);

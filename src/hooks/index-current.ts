@@ -6,7 +6,7 @@ import { logger } from "../core/logger.js";
  * Index the current session's transcript in response to a harness lifecycle
  * hook (Claude Code PreCompact / SessionEnd). These hooks deliver a JSON payload
  * on stdin that names the live transcript file; indexing it just before
- * compaction or session end is what lets recall survive context loss — the
+ * compaction or session end is what lets lore survive context loss — the
  * verbatim history is in the store before the window is wiped.
  *
  * Hooks must never crash the harness, so every failure path here is a quiet

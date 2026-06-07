@@ -1,5 +1,5 @@
 /**
- * Opt-in secret redaction. Off by default — recall is a local-only store, so the
+ * Opt-in secret redaction. Off by default — lore is a local-only store, so the
  * baseline posture is "keep everything verbatim." When a user opts in (via the
  * indexer flag), message text and tool payloads are passed through this pass so
  * obvious credentials never land in the index.

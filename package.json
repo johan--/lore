@@ -1,11 +1,11 @@
 {
-  "name": "recall",
+  "name": "loremcp",
   "version": "0.1.0",
-  "description": "Full-fidelity, searchable memory of agent session transcripts, exposed over MCP.",
+  "description": "Lightweight MCP for infinite agent memory. Any agent, any session, anytime.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "recall": "./dist/cli/recall.js"
+    "lore": "./dist/cli/lore.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

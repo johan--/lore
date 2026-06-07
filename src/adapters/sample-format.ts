@@ -25,7 +25,7 @@ export interface SampleFormatOptions {
 
 /**
  * Summarize a transcript directory's on-disk shape so an onboarding agent (or
- * `/recall-setup`) can reason about an unknown harness's format without reading
+ * `/lore-setup`) can reason about an unknown harness's format without reading
  * whole files. Walks for `*.jsonl`, picks the first file deterministically
  * (sorted), reads up to `maxLines` raw lines, and best-effort parses each to
  * collect the distinct top-level keys and `type` values. An empty directory
