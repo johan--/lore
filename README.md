@@ -17,6 +17,12 @@ hands it back, fully searchable, right where they work. An agent can pull up a
 decision from last Tuesday as easily as the line it just wrote. Local, private,
 and yours forever.
 
+
+
+https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
+
+
+
 ## ✨ Why you'll want it
 
 - 🧠 **Memory that outlives the context window.** Compaction stops meaning amnesia.
