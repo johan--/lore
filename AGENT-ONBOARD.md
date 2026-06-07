@@ -11,6 +11,15 @@ Do not skip the verify step. "I ran the commands" is not proof; a green
 
 ## Step 1 — Install and build
 
+If you just want it running, the published package is the fast path:
+
+```bash
+npm install -g loremcp     # puts the `lore` command on PATH
+```
+
+If you were pointed at the source repo instead (you are contributing, or you
+need to write a new adapter, which requires the source tree):
+
 ```bash
 cd <path-to-lore>      # the repo you were pointed at
 npm install

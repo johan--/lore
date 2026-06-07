@@ -53,14 +53,25 @@ command that does the indexing half is `lore setup` (below).
 ## 🛠️ Install it yourself
 
 ```bash
+npm install -g loremcp     # puts the `lore` command on your PATH
+```
+
+Requires Node 22+. That's the whole install. `lore setup` (below) takes it from
+here. If `npm install` chokes on `better-sqlite3`, or `lore` isn't found
+afterward, the [Troubleshooting](AGENT-ONBOARD.md#troubleshooting-when-step-1-or-2-fails)
+section has you covered (Windows included).
+
+### From source
+
+Cloning is for contributors, or for writing a new adapter (which needs the
+source tree):
+
+```bash
+git clone https://github.com/jordanhindo/lore && cd lore
 npm install
 npm run build
 npm link        # optional: puts `lore` on your PATH
 ```
-
-Requires Node 22+. If `npm install` chokes on `better-sqlite3`, or `lore`
-isn't found after linking, the [Troubleshooting](AGENT-ONBOARD.md#troubleshooting-when-step-1-or-2-fails)
-section has you covered (Windows included).
 
 ## 📥 Backfill your history
 
