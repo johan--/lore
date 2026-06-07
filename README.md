@@ -1,21 +1,24 @@
 # 📖 Lore
 
-### Lightweight MCP for infinite agent memory.
+### Shared memory for every AI agent you use.
 
 **Any agent. Any session. Anytime.**
 
-Your agents forget everything the moment a session compacts or ends. You spend an
-hour getting one deep into a gnarly problem, the window fills up, and suddenly
-it's a stranger again. Sure, compaction helps, untill you're 10 compats into a session. 
-- So you start a new session. 
-- Re-explain the thing you already explained. 
-- Beat your workflow back into the agents, just for the ctx window to refill. 
-- The work isn't gone, it's sitting right there on disk. It's just unreachable.
+The session you ran in Claude Code this morning, Codex can pull up this afternoon.
+The gnarly debugging thread Cursor worked through last week, Claude Code can read
+like it was sitting right there. Lore gives all of your coding agents one shared
+memory: across every tool, across every session, and it never expires.
 
-Lore fixes that. It quietly indexes every session your agents have ever had and
-hands it back, fully searchable, right where they work. An agent can pull up a
-decision from last Tuesday as easily as the line it just wrote. Local, private,
-and yours forever.
+That is the part most "agent memory" misses. Other tools remember things for one
+agent, inside one app. Lore makes every session any of your agents has ever had
+searchable by any other agent, anytime. What Codex figured out, Claude Code knows.
+What you solved on Tuesday is one search away on Friday, in whatever agent you
+happen to be in.
+
+And yes, it survives compaction. When a context window fills up and compacts, the
+work isn't gone, it's sitting right there on disk. Lore just makes it reachable
+again, fully searchable, right where your agents work. Local, private, and yours
+forever.
 
 
 
@@ -25,10 +28,11 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 ## ✨ Why you'll want it
 
-- 🧠 **Memory that outlives the context window.** Compaction stops meaning amnesia.
+- 🔀 **One memory, every agent.** Claude Code, Codex, Cursor, and Cline all read
+  and write the same store. A session in one agent is instantly readable by all
+  the others. What Codex figures out, Claude Code knows.
+- 🧠 **It outlives the context window.** Compaction stops meaning amnesia.
   Last week's reasoning is one search away.
-- 🔀 **One brain, every agent.** Claude Code, Codex, Cursor, and Cline all read and
-  write the same store. What one figured out, the others can find.
 - 🔍 **Search that speaks code.** `getUserById`, `foo.bar.ts`, and `trust-metadata`
   stay findable as whole words, not shredded into noise.
 - 🔒 **Local by default.** Everything lives at `~/.lore/lore.db` on your
