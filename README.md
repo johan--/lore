@@ -2,7 +2,7 @@
 
 ### Shared, full-fidelity, session history for every AI agent you use.
 
-**Any agent. Any session. Any turn, Anytime**
+**Any Agent. Any Session. Any Turn, Anytime.**
 
 The session you ran in Claude Code this morning, Openclaw can pull up this afternoon.
 The gnarly debugging thread Cursor worked through last week, Hermes can read
