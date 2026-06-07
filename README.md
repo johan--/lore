@@ -4,10 +4,10 @@
 
 **Any agent. Any session. Anytime.**
 
-The session you ran in Claude Code this morning, Codex can pull up this afternoon.
-The gnarly debugging thread Cursor worked through last week, Claude Code can read
+The session you ran in Claude Code this morning, Openclaw can pull up this afternoon.
+The gnarly debugging thread Cursor worked through last week, Hermes can read
 like it was sitting right there. Lore gives all of your coding agents one shared
-memory: across every tool, across every session, and it never expires.
+memory: across every tool, across every session, and it never expires. 
 
 That is the part most "agent memory" misses. Other tools remember things for one
 agent, inside one app. Lore makes every session any of your agents has ever had
