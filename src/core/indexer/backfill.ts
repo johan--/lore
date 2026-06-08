@@ -1,4 +1,4 @@
-import type { Store } from "../store/open-store.js";
+import { optimizeFts, type Store } from "../store/open-store.js";
 import { indexFile } from "./index-file.js";
 import { logger } from "../logger.js";
 import type { SourceAdapter } from "../../adapters/contract.js";
@@ -87,6 +87,13 @@ export async function backfillDirectory(
     } catch (err) {
       logger.error("failed to index file", { path: file.path, error: String(err) });
     }
+  }
+  // Compact the FTS segments left behind by this batch's inserts, but only when
+  // we actually wrote something — an all-skipped incremental re-run shouldn't pay
+  // for an optimize. This keeps the merge on the heavy `index`/`setup` paths and
+  // off the hot per-message `hook` path (which calls indexFile directly).
+  if (totals.messages > 0) {
+    optimizeFts(db);
   }
   logger.info("backfill complete", { ...totals });
   return totals;

@@ -1,6 +1,6 @@
 ---
 name: lore-setup
-description: Use to onboard a harness into lore (the local, full-fidelity session-memory store) so its sessions become searchable over MCP — the "get my sessions into lore" / "make lore understand my harness" task. Trigger when someone wants to index or backfill old/existing sessions (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), register the lore MCP server in their client, teach lore to read a harness it has no adapter for yet (write and prove an adapter — checkAdapterConformance, round-trip — for whatever it stores: JSONL, SQLite, or whole-file JSON, including homegrown CLIs), or feed a live process that writes no transcript files via push. Do NOT trigger for querying memory that is already indexed, or for parsing transcripts unrelated to lore.
+description: Use to onboard a harness into lore (the local, full-fidelity session-memory store) so its sessions become searchable over MCP — the "get my sessions into lore" / "make lore understand my harness" task. Trigger when someone wants to index or backfill old/existing sessions (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), read indexed sessions straight back with the server-free `lore search` / `lore sessions` CLI (no MCP server required), register the lore MCP server in their client, teach lore to read a harness it has no adapter for yet (write and prove an adapter — checkAdapterConformance, round-trip — for whatever it stores: JSONL, SQLite, or whole-file JSON, including homegrown CLIs), or feed a live process that writes no transcript files via push. Do NOT trigger for querying memory that is already indexed, or for parsing transcripts unrelated to lore.
 ---
 
 # lore-setup
@@ -10,10 +10,14 @@ should be able to follow it cold, with no judgement calls, and end with its own
 transcripts searchable over MCP. Self-setup is the proof that lore works for a
 new harness.
 
-`lore` is a local-only SQLite + FTS5 store of agent session transcripts, served
-over MCP. Each harness writes into its own `source` namespace (`claude-code`,
-`codex`, `openclaw`, `cursor`, `hermes`, …). There is one store; any MCP client
-reads all of it.
+`lore` is a local-only SQLite + FTS5 store of agent session transcripts. Each
+harness writes into its own `source` namespace (`claude-code`, `codex`,
+`openclaw`, `cursor`, `hermes`, …). There is one store, and there are two ways to
+read it: the `lore search` / `lore sessions` **CLI**, which queries the SQLite
+file directly and needs nothing running, and the **MCP server**, which any MCP
+client connects to. The CLI is the always-available path; the server is one way
+in for clients that speak MCP. Both read the same store, so anything you index is
+immediately retrievable from the CLI even before you register the server.
 
 ## Fast path: a harness lore already auto-detects
 
@@ -29,9 +33,11 @@ lore setup            # detect known harnesses, index, verify, print registratio
 `lore setup` probes the built-in locations (`~/.claude/projects`,
 `~/.codex/sessions`, `~/.codex/archived_sessions`). It does not touch any MCP
 client config — the registration block it prints is for you to apply. If it
-reports indexed sources and `Search self-check: OK`, jump straight to Step 4 to
-register. If it finds nothing (your harness isn't auto-detected, or its
-transcripts live elsewhere), fall through to the decision below.
+reports indexed sources and `Search self-check: OK`, your history is already
+queryable — run `lore search "<word>"` right now (Step 4a), and jump to Step 4b
+when you want to register the server in a client. If it finds nothing (your
+harness isn't auto-detected, or its transcripts live elsewhere), fall through to
+the decision below.
 
 ## Decision: which ingestion path?
 
@@ -201,9 +207,46 @@ Pushes are idempotent (keyed upserts), so re-pushing a session does not duplicat
 it, and the session rollup is recomputed automatically. This is the fastest way
 to get memory working: no clone, no adapter, no rebuild.
 
-## Step 4 — Serve over MCP
+## Step 4 — Read your memory back
 
-The server runs over stdio:
+Indexed content is queryable two ways. Start with the CLI: it needs nothing
+running, so it's the fastest confirmation that ingestion worked and the everyday
+way to pull a memory back from a shell or a script.
+
+### 4a. Server-free: the `lore search` / `lore sessions` CLI
+
+`lore search` opens the store read-only and runs the same bm25 keyword search the
+MCP `search_memory` tool does — no server, no client, no registration. This is
+the always-available path.
+
+```bash
+lore search "<query>"                        # keyword search across every source
+lore search "<query>" --source <name>        # scope to one harness namespace
+lore search "<query>" --json                 # same { count, hits } envelope as MCP
+```
+
+Every search filter the MCP tool takes is a flag here: `--project`, `--branch`,
+`--source`, `--agent`, `--skill`, `--tool`, `--role`, `--model`, `--since`,
+`--until`, `--limit`. Each hit leads with its `message id` and `session` so you
+can drill in.
+
+To narrow to a single conversation, find the session first, then scope to it:
+
+```bash
+lore sessions --source <name> --limit 20     # session rollups, newest first
+lore search "<query>" --session <session-id> # everything matching, in that one session
+```
+
+`lore sessions` lists rollups (message count, project, time span) so you can spot
+the conversation you mean; copy its id straight into `lore search --session`.
+Both commands fail clean with a "run `lore setup` or `lore index` first" message
+if there's no store yet, and both read a store another process may be writing to
+(WAL makes concurrent readers safe), so they work whether or not a server or
+another harness is live.
+
+### 4b. Serve over MCP
+
+For clients that speak MCP, run the server over stdio:
 
 ```bash
 lore serve            # MCP server over stdio
@@ -237,11 +280,19 @@ so it can never crash the harness.
 
 ## Step 6 — Verify (this is the proof)
 
-Confirm the new source is actually searchable. Call `search_memory` with
-`{ "source": "<name>", "query": "<a word you know is in a session>" }` and
-confirm you get hits whose `source` is `<name>`. A green search against the new
-namespace — produced by following this skill cold — is the proof that the harness
-is onboarded.
+Confirm the new source is actually searchable. The CLI is the cleanest proof
+because it needs nothing running — with no MCP server up, run:
+
+```bash
+lore search "<a word you know is in a session>" --source <name>
+```
+
+and confirm you get hits whose `source` is `<name>`. (If you registered the
+server in Step 4b, `search_memory` with
+`{ "source": "<name>", "query": "<…>" }` should return the same hits — they read
+the same store.) A green search against the new namespace — produced by following
+this skill cold, with no server in the loop — is the proof that the harness is
+onboarded.
 
 ## Checklist
 
@@ -255,5 +306,8 @@ is onboarded.
       registered, colocated tests added, `npm run check` passes
 - [ ] If push: batch validated and accepted (data only, no code executed)
 - [ ] Content indexed/pushed
-- [ ] `lore serve` wired into the MCP client
-- [ ] `search_memory` returns hits for the new `source`
+- [ ] Server-free read works: `lore search "<word>" --source <name>` returns hits
+      with no MCP server running (use `lore sessions` + `--session` to scope to one
+      conversation)
+- [ ] If a client needs MCP: `lore serve` wired in, and `search_memory` returns
+      the same hits for the new `source`
