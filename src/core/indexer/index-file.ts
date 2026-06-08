@@ -1,14 +1,10 @@
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
-import { createInterface } from "node:readline";
 import { basename } from "node:path";
 import type { Store } from "../store/open-store.js";
 import { writeRecordBatch } from "../store/write-records.js";
-import type { MessageRecord, SourceFileKind, ToolCallRecord } from "../records.js";
+import { resumeTokenSchema, type ResumeToken, type SourceFileKind } from "../records.js";
 import { logger } from "../logger.js";
 import type { SourceAdapter } from "../../adapters/contract.js";
 import { claudeCodeAdapter } from "../../adapters/claude-code/adapter.js";
-import { planReindex, prefixHash, PREFIX_BYTES, type PriorWatermark } from "./watermark.js";
 
 export interface IndexFileOptions {
   path: string;
@@ -28,25 +24,30 @@ export interface IndexFileOptions {
    * credential redactor before they're stored or indexed.
    */
   redact?: boolean;
-  /** Source adapter that knows how to parse this harness's lines. Defaults to Claude Code. */
+  /** Source adapter that knows how to ingest this harness's files. Defaults to Claude Code. */
   adapter?: SourceAdapter;
 }
 
 export interface IndexFileResult {
   sourceFileId: string;
   sessionId: string;
-  /** What the watermark decided: nothing to do, tail-appended, or fully re-indexed. */
+  /** What the resume plan decided: nothing to do, tail-appended, or fully re-indexed. */
   mode: "skip" | "append" | "full";
   messages: number;
   toolCalls: number;
   skipped: number;
 }
 
-/** Read the persisted watermark for a file, or null if it was never indexed. */
-function readWatermark(db: Store, sourceFileId: string): PriorWatermark | null {
+/**
+ * Read the persisted resume token for a file, or null if it was never indexed.
+ * Prefers the `resume_token` column; falls back to reconstructing a byte token
+ * from the legacy byte columns so stores indexed before the resume-token
+ * migration resume without a re-index.
+ */
+function readResumeToken(db: Store, sourceFileId: string): ResumeToken | null {
   const row = db
     .prepare(
-      "SELECT byte_offset, line_count, prefix_sha256, mtime FROM source_files WHERE source_file_id = ?",
+      "SELECT byte_offset, line_count, prefix_sha256, mtime, resume_token FROM source_files WHERE source_file_id = ?",
     )
     .get(sourceFileId) as
     | {
@@ -54,10 +55,15 @@ function readWatermark(db: Store, sourceFileId: string): PriorWatermark | null {
         line_count: number;
         prefix_sha256: string | null;
         mtime: string | null;
+        resume_token: string | null;
       }
     | undefined;
   if (!row) return null;
+  if (row.resume_token) {
+    return resumeTokenSchema.parse(JSON.parse(row.resume_token));
+  }
   return {
+    kind: "byte",
     byteOffset: row.byte_offset,
     lineCount: row.line_count,
     prefixSha256: row.prefix_sha256,
@@ -65,13 +71,30 @@ function readWatermark(db: Store, sourceFileId: string): PriorWatermark | null {
   };
 }
 
+/** Physical (byte) descriptors for the source-file row, derived from the token. */
+function physicalFromToken(token: ResumeToken): {
+  byteOffset: number;
+  lineCount: number;
+  prefixSha256: string | null;
+  mtime: string | null;
+} {
+  if (token.kind === "byte") {
+    return {
+      byteOffset: token.byteOffset,
+      lineCount: token.lineCount,
+      prefixSha256: token.prefixSha256,
+      mtime: token.mtime,
+    };
+  }
+  return { byteOffset: 0, lineCount: 0, prefixSha256: null, mtime: null };
+}
+
 /**
- * Stream-parse one transcript file and upsert its messages, tool calls, source
- * file row, and session rollup. Streaming (line-by-line) keeps memory bounded;
- * oversized text is capped by the parser.
- *
- * Resume-safe: a watermark on the source file row lets a re-index skip an
- * unchanged file, append only its new tail, or fully re-index a rewritten file.
+ * Index one discovered file via its adapter and persist the result. The single
+ * ingestion path: read the prior resume token, hand it to `adapter.ingest`,
+ * write the records the adapter yields through the shared writer, and persist
+ * the new token. Resume-safe — the adapter's resume plan lets a re-index skip an
+ * unchanged file, append only its new tail, or fully re-index a rewritten one.
  */
 export async function indexFile(db: Store, opts: IndexFileOptions): Promise<IndexFileResult> {
   const sourceFileId = opts.path;
@@ -79,89 +102,24 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
   const sessionId = opts.sessionId ?? basename(opts.path).replace(/\.jsonl$/i, "");
   const adapter = opts.adapter ?? claudeCodeAdapter;
 
-  const stats = await stat(opts.path).catch(() => null);
-  const prior = readWatermark(db, sourceFileId);
+  const priorToken = readResumeToken(db, sourceFileId);
+  const result = await adapter.ingest(
+    { path: opts.path, kind, agentFile: opts.agentFile ?? null, sessionId },
+    {
+      sourceFileId,
+      sessionId,
+      source: adapter.source,
+      priorToken,
+      maxTextChars: opts.maxTextChars,
+    },
+  );
 
-  // To detect an in-place rewrite vs. an append, hash the head region that the
-  // prior watermark already covered — appends never touch those bytes, so the
-  // hash stays stable across them. (Hashing the whole small file would change on
-  // every append.) The hash we persist below covers the *current* head.
-  const compareBytes = prior ? Math.min(PREFIX_BYTES, prior.byteOffset) : 0;
-  const compareHash = compareBytes > 0 ? await prefixHash(opts.path, compareBytes) : null;
-
-  const plan = stats
-    ? planReindex(prior, { size: stats.size, mtime: stats.mtime.toISOString() }, compareHash)
-    : ({ mode: "full" } as const);
-
-  if (plan.mode === "skip") {
+  if (result.mode === "skip") {
     logger.debug("skipped unchanged file", { path: opts.path });
     return { sourceFileId, sessionId, mode: "skip", messages: 0, toolCalls: 0, skipped: 0 };
   }
 
-  const startByte = plan.mode === "append" ? plan.fromByte : 0;
-  const startSeq = plan.mode === "append" ? plan.fromSeq : 0;
-
-  const stream = createReadStream(opts.path, { encoding: "utf8", start: startByte });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-  let seq = startSeq;
-  let messages = 0;
-  let toolCalls = 0;
-  let skipped = 0;
-
-  // better-sqlite3 transactions are synchronous, so we stream lines async into a
-  // buffer first, then apply them in one transaction.
-  interface Pending {
-    line: string;
-    seq: number;
-  }
-  const pending: Pending[] = [];
-  for await (const line of rl) {
-    if (line.trim().length === 0) {
-      seq++;
-      continue;
-    }
-    pending.push({ line, seq });
-    seq++;
-  }
-  const fileMetadata = adapter.getFileMetadata?.(
-    pending.map((row) => row.line),
-    sourceFileId,
-  );
-
-  // Parse the buffered lines into normalized records. Parsing is pure (no DB
-  // access), so it stays outside the write transaction; the shared writer owns
-  // the transaction, delete-before-rewrite, redaction, and the session rollup.
-  const messageRecords: MessageRecord[] = [];
-  const toolCallRecords: ToolCallRecord[] = [];
-  for (const { line, seq: lineSeq } of pending) {
-    const outcome = adapter.parseLine(line, {
-      sourceFileId,
-      sessionId,
-      seq: lineSeq,
-      source: adapter.source,
-      fileMetadata,
-      maxTextChars: opts.maxTextChars,
-    });
-    if (outcome.kind === "skipped") {
-      skipped++;
-      continue;
-    }
-    const { message, toolCalls: calls } = outcome.parsed;
-    messageRecords.push(message);
-    messages++;
-    for (const call of calls) {
-      call.sessionId = sessionId;
-      toolCallRecords.push(call);
-      toolCalls++;
-    }
-  }
-
-  // Persist a head-region hash covering the current file size, so the next
-  // re-index can compare against this exact region.
-  const storeBytes = stats ? Math.min(PREFIX_BYTES, stats.size) : 0;
-  const storeHash = storeBytes > 0 ? await prefixHash(opts.path, storeBytes) : null;
-
+  const phys = physicalFromToken(result.resumeToken);
   writeRecordBatch(
     db,
     {
@@ -172,19 +130,33 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
         kind,
         agentFile: opts.agentFile ?? null,
         path: opts.path,
-        byteOffset: stats ? stats.size : 0,
-        lineCount: seq,
-        prefixSha256: storeHash,
-        mtime: stats ? stats.mtime.toISOString() : null,
+        byteOffset: phys.byteOffset,
+        lineCount: phys.lineCount,
+        prefixSha256: phys.prefixSha256,
+        mtime: phys.mtime,
+        resumeToken: result.resumeToken,
         indexedAt: new Date().toISOString(),
       },
-      messages: messageRecords,
-      toolCalls: toolCallRecords,
+      messages: result.messages,
+      toolCalls: result.toolCalls,
     },
-    { mode: plan.mode === "full" ? "full" : "append", redact: opts.redact },
+    { mode: result.mode === "full" ? "full" : "append", redact: opts.redact },
   );
 
-  logger.debug("indexed file", { path: opts.path, mode: plan.mode, messages, toolCalls, skipped });
+  logger.debug("indexed file", {
+    path: opts.path,
+    mode: result.mode,
+    messages: result.messages.length,
+    toolCalls: result.toolCalls.length,
+    skipped: result.skipped,
+  });
 
-  return { sourceFileId, sessionId, mode: plan.mode, messages, toolCalls, skipped };
+  return {
+    sourceFileId,
+    sessionId,
+    mode: result.mode,
+    messages: result.messages.length,
+    toolCalls: result.toolCalls.length,
+    skipped: result.skipped,
+  };
 }

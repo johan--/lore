@@ -1,44 +1,74 @@
 import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
+import type {
+  ByteResumeToken,
+  HashResumeToken,
+  ResumeToken,
+  RowidResumeToken,
+} from "../records.js";
 
 /**
- * Resume watermark logic. A source file row remembers (byteOffset, lineCount,
- * prefixSha256, mtime) from its last index. On re-index we compare that against
- * the file's current size/mtime/head-hash to decide whether to skip the file
- * entirely, append only its new tail, or re-index it from scratch.
+ * Source-agnostic resume planning. A source file row remembers a tagged
+ * `ResumeToken`; on re-index we compare it against the source's current state to
+ * decide whether to skip, append only the new tail, or re-index from scratch.
  *
- * Append-only transcripts (the common Claude Code / Codex case) take the cheap
- * append path; an in-place rewrite or rotation is caught by the prefix hash and
- * falls back to a full re-index so the store never carries stale rows.
+ * Each token kind has its own pure planner. Byte sources (append-only text
+ * transcripts) take the cheap append path, with a head-hash guard that catches
+ * an in-place rewrite or rotation and forces a full re-index. Database sources
+ * resume from a row id; whole-file sources re-read whenever a content hash
+ * changes. `planReindex` dispatches to the right planner on the *current*
+ * source's kind, treating a prior token of a different kind as "never seen."
  */
 
 /** Bytes of file head hashed to detect in-place rewrites without reading the whole file. */
 export const PREFIX_BYTES = 4096;
-
-export interface PriorWatermark {
-  byteOffset: number;
-  lineCount: number;
-  prefixSha256: string | null;
-  mtime: string | null;
-}
 
 export interface FileStats {
   size: number;
   mtime: string;
 }
 
+/**
+ * The resume plan. `append.from` carries the prior token so the caller knows
+ * where to resume from (byte offset + line count, or row id).
+ */
 export type ReindexPlan =
   | { mode: "skip" }
   | { mode: "full" }
-  | { mode: "append"; fromByte: number; fromSeq: number };
+  | { mode: "append"; from: ResumeToken };
+
+/** Current state of the source, tagged by the resume strategy it supports. */
+export type CurrentSource =
+  | { kind: "byte"; stats: FileStats; prefixHash: string | null }
+  | { kind: "rowid"; maxRowId: number | null }
+  | { kind: "hash"; hash: string };
 
 /**
- * Decide how to re-index a file given its prior watermark, current stats, and a
- * freshly computed head hash. `currentPrefixHash` may be null when the file is
- * smaller than one byte or unreadable; callers treat that as "can't verify".
+ * Decide how to re-index given the prior token and the source's current state.
+ * Dispatches on the current source kind; a prior token whose kind doesn't match
+ * (e.g. an adapter changed strategy) is treated as no prior → full re-index.
  */
-export function planReindex(
-  prior: PriorWatermark | null,
+export function planReindex(prior: ResumeToken | null, current: CurrentSource): ReindexPlan {
+  switch (current.kind) {
+    case "byte":
+      return planByteReindex(
+        prior?.kind === "byte" ? prior : null,
+        current.stats,
+        current.prefixHash,
+      );
+    case "rowid":
+      return planRowidReindex(prior?.kind === "rowid" ? prior : null, current.maxRowId);
+    case "hash":
+      return planHashReindex(prior?.kind === "hash" ? prior : null, current.hash);
+  }
+}
+
+/**
+ * Byte (append-only text) planner. `currentPrefixHash` may be null when the file
+ * is empty or unreadable; callers treat that as "can't verify the head."
+ */
+export function planByteReindex(
+  prior: ByteResumeToken | null,
   stats: FileStats,
   currentPrefixHash: string | null,
 ): ReindexPlan {
@@ -59,7 +89,33 @@ export function planReindex(
   }
 
   // Grew (or only mtime changed) with a matching head → append the tail.
-  return { mode: "append", fromByte: prior.byteOffset, fromSeq: prior.lineCount };
+  return { mode: "append", from: prior };
+}
+
+/**
+ * Row-id (database) planner. Appends rows past the last ingested id; a max row id
+ * below the watermark means rows were deleted/rotated, so re-read in full. A null
+ * max (couldn't read) is treated conservatively as a full re-read.
+ */
+export function planRowidReindex(
+  prior: RowidResumeToken | null,
+  maxRowId: number | null,
+): ReindexPlan {
+  if (!prior) return { mode: "full" };
+  if (maxRowId === null) return { mode: "full" };
+  if (maxRowId < prior.value) return { mode: "full" };
+  if (maxRowId === prior.value) return { mode: "skip" };
+  return { mode: "append", from: prior };
+}
+
+/**
+ * Whole-file (content-hash) planner. No incremental cursor: identical hash means
+ * skip, any change means a full re-index.
+ */
+export function planHashReindex(prior: HashResumeToken | null, currentHash: string): ReindexPlan {
+  if (!prior) return { mode: "full" };
+  if (prior.value === currentHash) return { mode: "skip" };
+  return { mode: "full" };
 }
 
 /**
