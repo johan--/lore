@@ -114,9 +114,10 @@ tight):
 > **lore — long-term session memory.** A local, searchable store of past agent
 > sessions at `~/.lore/lore.db`, served over MCP. When you need context you
 > don't have — a past decision, how something was built, why an approach was
-> dropped — query it with the `search_memory` / `find_relevant` tools (filters:
-> `project`, `branch`, `source`, `agent`, `tool`, `since`, `until`) **before**
-> guessing or asking. Ingestion differs per harness (each writes its own
+> dropped — query it with `find_relevant` (the default: relevance-led, gently
+> biased toward what matters now; `search_memory` is the pure-lexical escape
+> hatch) using filters `project`, `branch`, `source`, `agent`, `tool`, `since`,
+> `until` **before** guessing or asking. Ingestion differs per harness (each writes its own
 > transcript format, read via its own adapter into its own `source` namespace:
 > `claude-code`, `codex`, …) but querying is identical. Resolving loose
 > references: an unqualified "the last session" / "pop back in" means **your own**

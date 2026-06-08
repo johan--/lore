@@ -76,8 +76,11 @@ reserve behavioral logging for the one job only it can do — pruning. Definitio
 - [x] `search_memory` behavior unchanged (pure lexical) — untouched.
 - [x] No new writes on the read/search path — recurrence is one read-only grouped query over the
       indexed `content_hash`; importance is derived, never logged.
-- [ ] Skill + docs name the fixed `find_relevant` as the default retrieval surface — _docs/skill
-      copy still to update; the function itself is fixed._
+- [x] Skill + docs name the fixed `find_relevant` as the default retrieval surface — README tool
+      table + "what a search returns" now lead with `find_relevant` (default) and frame
+      `search_memory` as the pure-lexical escape hatch; AGENT-ONBOARD usage blurb does the same.
+      CONTEXT.md glossary + ADR-0001 already encode the mandate. Setup-verify steps stay on
+      `search_memory` (keyword-existence proof, the right tool there).
 - [x] `npm run check` passes (220 tests).
 
 > **Live-store step (not done — needs the user):** the "on the *live* store" check and the schema-v3

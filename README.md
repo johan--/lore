@@ -143,8 +143,8 @@ cheap.
 
 | Tool            | What it does                                                          |
 | --------------- | -------------------------------------------------------------------- |
-| `search_memory` | Keyword search across every transcript, ranked by bm25, with filters. |
-| `find_relevant` | Like `search_memory`, but blends relevance with recency.             |
+| `find_relevant` | **The default.** Relevance-led ranking, with recency and cross-session importance as bounded priors that only settle near-ties. |
+| `search_memory` | The pure-lexical escape hatch: keyword search ranked by bm25 alone, with filters. Reach for it when you want best-match regardless of age. |
 | `get_message`   | Fetch one message by id (`full=true` returns the un-elided text).    |
 | `get_context`   | The neighbor window around an anchor message.                        |
 | `get_session`   | One logical session as a folded, paginated timeline.                 |
@@ -156,13 +156,13 @@ Every search tool takes the same dimension filters: `project`, `branch`,
 
 ### What a search returns
 
-Your agent calls `search_memory` with a query (plus any filters) and gets back a
-count and a ranked list of hits. Each hit carries the matched text and full
-provenance, so the agent knows _where_ the memory came from and can pull the rest
-with `get_message`:
+Your agent calls `find_relevant` (or `search_memory`) with a query plus any
+filters and gets back a count and a ranked list of hits. Each hit carries the
+matched text and full provenance, so the agent knows _where_ the memory came
+from and can pull the rest with `get_message`:
 
 ```jsonc
-// search_memory({ query: "fts tokenizer", source: "claude-code", limit: 2 })
+// find_relevant({ query: "fts tokenizer", source: "claude-code", limit: 2 })
 {
   "count": 2,
   "hits": [
