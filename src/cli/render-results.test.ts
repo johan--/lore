@@ -8,6 +8,7 @@ function hit(over: Partial<SearchHit> = {}): SearchHit {
     messageId: "m-abc",
     sessionId: "sess-1",
     sourceFileId: "sf-1",
+    source: "codex",
     role: "assistant",
     timestamp: "2026-06-05T18:22:41.103Z",
     project: "/repo",
@@ -51,6 +52,7 @@ describe("renderSearchResults", () => {
   it("includes the message id and text in human output so an agent can fetch more", () => {
     const out = renderSearchResults([hit({ messageId: "m-xyz" })], false);
     expect(out).toContain("m-xyz");
+    expect(out).toContain("source codex");
     expect(out).toContain("switched the fts tokenizer to unicode61");
   });
 

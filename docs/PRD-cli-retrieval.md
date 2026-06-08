@@ -22,7 +22,7 @@ Give the search engine a second front door that does not depend on the server, m
 
 **Session scoping, applied identically everywhere.** Add a `session` filter to the search options so any caller can scope to one logical session. Because the CLI and the MCP server must never diverge, the filter set is defined once as a single typed options shape and consumed by both; the CLI's flag parsing produces that same shape rather than a parallel one.
 
-**Scale tuning on the real store.** Set the SQLite memory-map and cache pragmas when the store opens, add indexes on the two unindexed narrowing columns (`project` on messages, `source` on source files), and run the FTS5 `optimize` maintenance step so keyword search stays fast as the corpus grows. Each change is proven on the real on-machine store with before/after timing or an `EXPLAIN QUERY PLAN`, not asserted.
+**Scale tuning on the real store.** Set the SQLite memory-map and cache pragmas when the store opens, evaluate candidate indexes on the two unindexed narrowing columns (`project` on messages, `source` on source files), ship only the index whose plan is actually used, and run the FTS5 `optimize` maintenance step so keyword search stays fast as the corpus grows. Each change is proven on the real on-machine store with before/after timing or an `EXPLAIN QUERY PLAN`, not asserted.
 
 **A skill that teaches the search path.** Update the onboarding skill (as a whole bundle, via skill-creator) so an agent learns it can search from the terminal without the server — otherwise the new door is built and never opened.
 
@@ -128,5 +128,62 @@ Sequencing — three implementation issues (the session filter is too small to b
 3. **Skill update.** Teach the server-free `lore search` + `lore sessions` path through skill-creator, whole bundle.
 
 This PRD has survived one adversarial critic pass (2026-06-07). Findings folded in: the read-only-vs-`openStore`-always-migrates BLOCKER (added `openStoreReadonly` + missing/stale-store handling); the over-claimed index win (indexes are now per-index EQP-gated and justified by session-rollup/timeline access, not by FTS-driven search); `optimize` pinned to the write path; "shared type, not shared parser" reworded honestly; elision + `{ count, hits }` envelope parity made explicit; and the US-9 gap closed by adding `lore sessions` so "my last session" is actually answerable server-free. The `find_relevant` pool-widening deferral was checked and upheld (the pool is already `max(limit*5, 100)`, not obviously starved).
+
+## Measurement Evidence
+
+Real-store scale checks were run against Jordan's local Lore store (about 2.5 GB, about 352k messages). The useful index was `messages(project)`; the candidate `source_files(source)` index was intentionally not shipped.
+
+Shipped performance changes and evidence:
+
+| Change | Evidence kept | Result |
+| --- | --- | --- |
+| `idx_messages_project` | `EXPLAIN QUERY PLAN` before/after plus cold-cache timing for project-filtered `list_sessions` | Planner switched from scanning `idx_messages_session` to searching `idx_messages_project (project=?)`; one cold run fell from about 12s to about 3s |
+| dropped `source_files(source)` candidate | `EXPLAIN QUERY PLAN` with the candidate present | Planner still drove from `messages` and joined `source_files` by primary key, so the index was not shipped |
+| read pragmas (`mmap_size`, `cache_size`) | real-store read-only timing plus pragma readback | Project-filtered rollup on 2026-06-08: untuned 5192.5 ms (`mmap_size=0`, `cache_size=-2000`), tuned 4335.6 ms (`mmap_size=1073741824`, `cache_size=-65536`) |
+| FTS5 `optimize` | write-path placement plus idempotence/search-preservation tests | Runs after backfills with new messages; not present in `openStoreReadonly` or search paths |
+
+`list_sessions` with a project filter:
+
+```text
+Before idx_messages_project:
+SCAN m USING INDEX idx_messages_session
+SEARCH sf USING INDEX sqlite_autoindex_source_files_1 (source_file_id=?) LEFT-JOIN
+
+After idx_messages_project:
+SEARCH m USING INDEX idx_messages_project (project=?)
+SEARCH sf USING INDEX sqlite_autoindex_source_files_1 (source_file_id=?) LEFT-JOIN
+USE TEMP B-TREE FOR GROUP BY
+USE TEMP B-TREE FOR ORDER BY
+```
+
+Cold-cache timing for the same project-filtered session rollup improved from roughly 12 seconds to roughly 3 seconds. The plan change is cache-independent: it visits only rows for the requested project instead of scanning the session index across every session.
+
+`timeline` with a project filter showed the same useful planner shape:
+
+```text
+SEARCH m USING INDEX idx_messages_project (project=?)
+USE TEMP B-TREE FOR GROUP BY
+```
+
+The keyword search query remained FTS-driven as expected:
+
+```text
+SCAN messages_fts VIRTUAL TABLE INDEX 0:M1
+SEARCH m USING INTEGER PRIMARY KEY (rowid=?)
+SEARCH sf USING INDEX sqlite_autoindex_source_files_1 (source_file_id=?) LEFT-JOIN
+```
+
+That is why `idx_messages_project` is documented as a session-rollup/timeline optimization, not a keyword-search optimization.
+
+The dropped `source_files(source)` candidate did not change the access plan for source-filtered rollups; SQLite still drove from `messages` and joined `source_files` by primary key, while `source_files` is tiny compared with `messages`. Keeping that index would add write cost without a measured read win.
+
+Read pragmas were verified on opened connections:
+
+```text
+PRAGMA mmap_size = 1073741824
+PRAGMA cache_size = -65536
+```
+
+`messages_fts optimize` was verified as idempotent and search-preserving after writes. It runs after indexing batches with new messages, never in `openStoreReadonly` and never during `lore search`.
 
 Next steps: break this into the three implementation issues above (tracer-bullet slices), build each test-first, then execute end to end. Trust order once issues exist: merged code over PR over issues over this document.

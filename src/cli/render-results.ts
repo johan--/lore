@@ -19,6 +19,7 @@ export function renderSearchResults(hits: SearchHit[], json: boolean): string {
 function renderHit(h: SearchHit, n: number): string {
   const meta = [`score ${h.score.toFixed(2)}`, h.role, h.timestamp ?? "(no timestamp)"].join("  ");
   const provenance = [
+    h.source ? `source ${h.source}` : null,
     `session ${h.sessionId}`,
     h.project ? `project ${h.project}` : null,
     h.branch ? `branch ${h.branch}` : null,

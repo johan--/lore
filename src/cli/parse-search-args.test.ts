@@ -39,10 +39,23 @@ describe("parseSearchArgs", () => {
     expect(query).toBeUndefined();
   });
 
-  it("ignores an unknown flag rather than treating it as the query", () => {
+  it("ignores an unknown flag and its value rather than treating either as the query", () => {
     const { query, opts } = parseSearchArgs(["--bogus", "alamo"]);
-    expect(query).toBe("alamo");
+    expect(query).toBeUndefined();
     expect(opts).not.toHaveProperty("bogus");
+  });
+
+  it("does not consume another flag as a missing search flag value", () => {
+    const { query, opts } = parseSearchArgs(["alamo", "--project", "--branch", "main"]);
+    expect(query).toBe("alamo");
+    expect(opts.project).toBeUndefined();
+    expect(opts.branch).toBe("main");
+  });
+
+  it("does not consume another flag as a missing search limit value", () => {
+    const { opts, json } = parseSearchArgs(["alamo", "--limit", "--json"]);
+    expect(opts.limit).toBeUndefined();
+    expect(json).toBe(true);
   });
 });
 
@@ -60,6 +73,18 @@ describe("parseSessionsArgs", () => {
     expect(opts.project).toBe("/repo");
     expect(opts.source).toBe("codex");
     expect(opts.limit).toBe(10);
+    expect(json).toBe(true);
+  });
+
+  it("does not consume another flag as a missing sessions flag value", () => {
+    const { opts } = parseSessionsArgs(["--project", "--source", "codex"]);
+    expect(opts.project).toBeUndefined();
+    expect(opts.source).toBe("codex");
+  });
+
+  it("does not consume another flag as a missing sessions limit value", () => {
+    const { opts, json } = parseSessionsArgs(["--limit", "--json"]);
+    expect(opts.limit).toBeUndefined();
     expect(json).toBe(true);
   });
 });

@@ -203,6 +203,10 @@ export function createLoreServer(db: Store): McpServer {
         query: z.string().describe("Keyword or phrase to search for."),
         project: z.string().optional().describe("Filter to a project path (cwd)."),
         branch: z.string().optional().describe("Filter to a git branch."),
+        session: z
+          .string()
+          .optional()
+          .describe("Filter to a single logical session id (one conversation)."),
         source: z.string().optional().describe("Filter to a harness namespace."),
         agent: z.string().optional().describe("Filter to a subagent id."),
         skill: z.string().optional().describe("Filter to messages that invoked a named skill."),
@@ -218,6 +222,7 @@ export function createLoreServer(db: Store): McpServer {
       query,
       project,
       branch,
+      session,
       source,
       agent,
       skill,
@@ -231,6 +236,7 @@ export function createLoreServer(db: Store): McpServer {
       const hits = findRelevant(db, query, {
         project,
         branch,
+        session,
         source,
         agent,
         skill,

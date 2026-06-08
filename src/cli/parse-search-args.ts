@@ -18,6 +18,10 @@ const SEARCH_STRING_FLAGS = [
 
 const SESSION_STRING_FLAGS = ["project", "source", "since", "until"] as const;
 
+function isValueToken(value: string | undefined): value is string {
+  return value !== undefined && !value.startsWith("--");
+}
+
 export interface ParsedSearchArgs {
   /** First positional token, the FTS query. Undefined when only flags are given. */
   query: string | undefined;
@@ -52,20 +56,23 @@ export function parseSearchArgs(rest: string[]): ParsedSearchArgs {
       const name = arg.slice(2);
       const value = rest[i + 1];
       if (name === "limit") {
-        const n = Number(value);
-        if (Number.isInteger(n) && n > 0) opts.limit = n;
-        i++;
+        if (isValueToken(value)) {
+          const n = Number(value);
+          if (Number.isInteger(n) && n > 0) opts.limit = n;
+          i++;
+        }
         continue;
       }
       if ((SEARCH_STRING_FLAGS as readonly string[]).includes(name)) {
-        if (value !== undefined) {
+        if (isValueToken(value)) {
           (opts as Record<string, unknown>)[name] = value;
           i++;
         }
         continue;
       }
-      // Unknown flag: skip just this token. A following bare token still falls
-      // through to become the query, so a typo'd flag can't swallow the search.
+      // Unknown flag: skip its value-shaped token too, so typo'd flags do not
+      // silently turn their values into the search query.
+      if (isValueToken(value)) i++;
       continue;
     }
     if (query === undefined) query = arg;
@@ -90,19 +97,21 @@ export function parseSessionsArgs(rest: string[]): ParsedSessionsArgs {
       const name = arg.slice(2);
       const value = rest[i + 1];
       if (name === "limit") {
-        const n = Number(value);
-        if (Number.isInteger(n) && n > 0) opts.limit = n;
-        i++;
+        if (isValueToken(value)) {
+          const n = Number(value);
+          if (Number.isInteger(n) && n > 0) opts.limit = n;
+          i++;
+        }
         continue;
       }
       if ((SESSION_STRING_FLAGS as readonly string[]).includes(name)) {
-        if (value !== undefined) {
+        if (isValueToken(value)) {
           (opts as Record<string, unknown>)[name] = value;
           i++;
         }
         continue;
       }
-      if (value !== undefined && !value.startsWith("--")) i++;
+      if (isValueToken(value)) i++;
     }
   }
 

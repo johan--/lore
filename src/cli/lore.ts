@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
-import { openStore, openStoreReadonly } from "../core/store/open-store.js";
+import { openStore, openStoreReadonly, type Store } from "../core/store/open-store.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { backfillDirectory } from "../core/indexer/backfill.js";
 import { indexFromHookPayload } from "../hooks/index-current.js";
@@ -52,6 +52,35 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function missingStore(dbPath: string): void {
+  process.stderr.write(
+    `error: no lore store at ${dbPath}. Run \`lore setup\` or \`lore index <dir>\` first.\n`,
+  );
+}
+
+function unreadableStore(dbPath: string): void {
+  process.stderr.write(
+    `error: lore store at ${dbPath} is not readable with the current schema. ` +
+      `Run \`lore setup\` or \`lore index <dir>\` first.\n`,
+  );
+}
+
+function withReadonlyStore<T>(
+  dbPath: string,
+  read: (db: Store) => T,
+): { ok: true; value: T } | { ok: false } {
+  let db: Store | undefined;
+  try {
+    db = openStoreReadonly(dbPath);
+    return { ok: true, value: read(db) };
+  } catch {
+    unreadableStore(dbPath);
+    return { ok: false };
+  } finally {
+    db?.close();
+  }
+}
+
 export async function runCli(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
 
@@ -76,12 +105,15 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       const db = openStore(resolveDbPath());
-      const totals = await backfillDirectory(db, dir, { includeSubagents, redact, adapter });
-      process.stdout.write(
-        `Indexed ${totals.files} files: ${totals.messages} messages, ` +
-          `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
-      );
-      db.close();
+      try {
+        const totals = await backfillDirectory(db, dir, { includeSubagents, redact, adapter });
+        process.stdout.write(
+          `Indexed ${totals.files} files: ${totals.messages} messages, ` +
+            `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
+        );
+      } finally {
+        db.close();
+      }
       return 0;
     }
     case "search": {
@@ -92,41 +124,44 @@ export async function runCli(argv: string[]): Promise<number> {
       }
       const dbPath = resolveDbPath();
       if (!existsSync(dbPath)) {
-        process.stderr.write(
-          `error: no lore store at ${dbPath}. Run \`lore setup\` or \`lore index <dir>\` first.\n`,
-        );
+        missingStore(dbPath);
         return 1;
       }
-      const db = openStoreReadonly(dbPath);
-      const hits = searchMemory(db, query, opts).map((hit) => ({
-        ...hit,
-        text: elide(hit.text, hit.messageId),
-      }));
-      db.close();
-      process.stdout.write(renderSearchResults(hits, json));
+      const result = withReadonlyStore(dbPath, (db) => {
+        const hits = searchMemory(db, query, opts).map((hit) => ({
+          ...hit,
+          text: elide(hit.text, hit.messageId),
+        }));
+        return renderSearchResults(hits, json);
+      });
+      if (!result.ok) return 1;
+      process.stdout.write(result.value);
       return 0;
     }
     case "sessions": {
       const { opts, json } = parseSessionsArgs(rest);
       const dbPath = resolveDbPath();
       if (!existsSync(dbPath)) {
-        process.stderr.write(
-          `error: no lore store at ${dbPath}. Run \`lore setup\` or \`lore index <dir>\` first.\n`,
-        );
+        missingStore(dbPath);
         return 1;
       }
-      const db = openStoreReadonly(dbPath);
-      const sessions = listSessions(db, opts);
-      db.close();
-      process.stdout.write(renderSessions(sessions, json));
+      const result = withReadonlyStore(dbPath, (db) =>
+        renderSessions(listSessions(db, opts), json),
+      );
+      if (!result.ok) return 1;
+      process.stdout.write(result.value);
       return 0;
     }
     case "setup": {
       const homeIdx = rest.indexOf("--home");
       const home = homeIdx >= 0 ? rest[homeIdx + 1] : undefined;
       const db = openStore(resolveDbPath());
-      const result = await runSetup(db, home);
-      db.close();
+      let result: Awaited<ReturnType<typeof runSetup>>;
+      try {
+        result = await runSetup(db, home);
+      } finally {
+        db.close();
+      }
       if (result.indexed.length === 0) {
         process.stdout.write(
           "No known harness transcripts found on this machine.\n" +
@@ -164,8 +199,11 @@ export async function runCli(argv: string[]): Promise<number> {
       const payload = await readStdin();
       const redact = rest.includes("--redact");
       const db = openStore(resolveDbPath());
-      await indexFromHookPayload(db, payload, { redact });
-      db.close();
+      try {
+        await indexFromHookPayload(db, payload, { redact });
+      } finally {
+        db.close();
+      }
       return 0;
     }
     case "serve": {

@@ -92,7 +92,7 @@ export async function backfillDirectory(
   // we actually wrote something — an all-skipped incremental re-run shouldn't pay
   // for an optimize. This keeps the merge on the heavy `index`/`setup` paths and
   // off the hot per-message `hook` path (which calls indexFile directly).
-  if (totals.filesIndexed > 0) {
+  if (totals.messages > 0) {
     optimizeFts(db);
   }
   logger.info("backfill complete", { ...totals });

@@ -5,6 +5,7 @@ export interface SearchHit {
   messageId: string;
   sessionId: string;
   sourceFileId: string;
+  source: string | null;
   role: string;
   timestamp: string | null;
   project: string | null;
@@ -43,6 +44,7 @@ interface HitRow {
   message_id: string;
   session_id: string;
   source_file_id: string;
+  source: string | null;
   role: string;
   timestamp: string | null;
   project: string | null;
@@ -106,7 +108,7 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
   const rows = db
     .prepare(
       `SELECT m.message_id, m.session_id, m.source_file_id, m.role, m.timestamp,
-              m.project, m.branch, m.model, m.agent, m.text, m.text_truncated,
+              sf.source AS source, m.project, m.branch, m.model, m.agent, m.text, m.text_truncated,
               -bm25(messages_fts) AS score
          FROM messages_fts
          JOIN messages m ON m.rowid = messages_fts.rowid
@@ -121,6 +123,7 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
     messageId: r.message_id,
     sessionId: r.session_id,
     sourceFileId: r.source_file_id,
+    source: r.source,
     role: r.role,
     timestamp: r.timestamp,
     project: r.project,
