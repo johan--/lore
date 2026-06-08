@@ -140,6 +140,42 @@ describe("findRelevant", () => {
     expect(hits[0]?.text).toContain("recur-note");
   });
 
+  it("does not lift content that recurs only in system-role plumbing", () => {
+    const db = freshStore();
+    // One-off genuine memory, inserted first so it leads on a bm25 tie absent any boost.
+    upsertMessage(
+      db,
+      msg({
+        messageId: "oneoff",
+        uuid: "u0",
+        seq: 0,
+        sessionId: "sess-1",
+        timestamp: NOW,
+        text: "alamo oneoff-note padding padding padding padding",
+      }),
+    );
+    // Same text recurring across three sessions, but only as system plumbing
+    // (e.g. a harness notice). It must NOT earn an importance boost.
+    const sysText = "alamo recur-note padding padding padding padding";
+    for (let i = 1; i <= 3; i++) {
+      upsertMessage(
+        db,
+        msg({
+          messageId: `sys-${i}`,
+          uuid: `s${i}`,
+          seq: i,
+          sessionId: `sess-${i}`,
+          role: "system",
+          timestamp: NOW,
+          text: sysText,
+        }),
+      );
+    }
+
+    const hits = findRelevant(db, "alamo", { now: NOW });
+    expect(hits[0]?.text).toContain("oneoff-note");
+  });
+
   it("carries a blended score and respects the limit", () => {
     const db = freshStore();
     for (let i = 0; i < 5; i++) {

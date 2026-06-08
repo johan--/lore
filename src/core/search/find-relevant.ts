@@ -53,6 +53,11 @@ export function findRelevant(
 /**
  * For the candidate hits, count how many distinct sessions each one's canonical
  * content recurs across, in a single grouped query over the indexed content_hash.
+ * System-role messages are excluded from the tally: in the shared multi-harness
+ * store they are tool/harness plumbing (command-failure notices, spawn/permission
+ * banners, tool-output echoes) that recur verbatim across hundreds of sessions and
+ * would otherwise dominate importance. They remain fully searchable; they just
+ * don't earn a recurrence boost.
  */
 function recurrenceBySession(db: Store, candidates: SearchHit[]): Map<string, number> {
   const hashes = new Set<string>();
@@ -70,6 +75,7 @@ function recurrenceBySession(db: Store, candidates: SearchHit[]): Map<string, nu
       `SELECT content_hash AS hash, COUNT(DISTINCT session_id) AS sessions
          FROM messages
         WHERE content_hash IN (${placeholders})
+          AND role != 'system'
         GROUP BY content_hash`,
     )
     .all(...keys) as { hash: string; sessions: number }[];
