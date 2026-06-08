@@ -43,10 +43,10 @@ describe("planByteReindex", () => {
     expect(plan).toEqual({ mode: "full" });
   });
 
-  it("appends when the head hash cannot be verified (null current hash)", () => {
+  it("full re-indexes when the head hash cannot be verified", () => {
     const prior = byteToken();
     const plan = planByteReindex(prior, { size: 300, mtime: "t" }, null);
-    expect(plan).toEqual({ mode: "append", from: prior });
+    expect(plan).toEqual({ mode: "full" });
   });
 });
 
@@ -59,6 +59,16 @@ describe("planRowidReindex", () => {
 
   it("skips when the max row id is unchanged", () => {
     expect(planRowidReindex(prior, 42)).toEqual({ mode: "skip" });
+  });
+
+  it("full re-index when the already-indexed prefix fingerprint changed", () => {
+    const token: RowidResumeToken = { kind: "rowid", value: 42, fingerprint: "old" };
+    expect(planRowidReindex(token, 42, "new")).toEqual({ mode: "full" });
+  });
+
+  it("appends when new rows exist and the already-indexed prefix is unchanged", () => {
+    const token: RowidResumeToken = { kind: "rowid", value: 42, fingerprint: "same" };
+    expect(planRowidReindex(token, 50, "same")).toEqual({ mode: "append", from: token });
   });
 
   it("appends from the prior token when new rows exist", () => {

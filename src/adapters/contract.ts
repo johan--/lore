@@ -91,8 +91,8 @@ export interface IngestResult {
  */
 export interface LineMapper {
   source: Source;
-  /** Optional file-level metadata pass for sources that put cwd/model in meta lines. */
-  getFileMetadata?(rawLines: string[], sourceFileId: string): FileMetadata;
+  /** Optional file-level metadata pass for sources that put cwd/model in full-file meta lines. */
+  getFileMetadata?(fullFileLines: string[], sourceFileId: string): FileMetadata;
   /** Parse one raw transcript line into normalized records, or skip it. */
   parseLine(rawLine: string, ctx: ParseContext): ParseOutcome;
 }

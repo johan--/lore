@@ -47,6 +47,20 @@ describe("sampleFormat", () => {
     expect(table?.rowCount).toBe(1);
   });
 
+  it("quotes SQLite table names when reporting table shape", async () => {
+    const dbPath = join(dir, "state.db");
+    const db = new Database(dbPath);
+    db.exec('CREATE TABLE "odd""table" (id INTEGER PRIMARY KEY, value TEXT)');
+    db.prepare('INSERT INTO "odd""table" (value) VALUES (?)').run("ok");
+    db.close();
+
+    const sample = await sampleFormat(dir);
+    expect(sample.kind).toBe("sqlite");
+    const table = sample.tables.find((t) => t.name === 'odd"table');
+    expect(table?.columns).toEqual(["id", "value"]);
+    expect(table?.rowCount).toBe(1);
+  });
+
   it("detects a whole-file JSON array and reports element keys", async () => {
     const records = [
       { id: "a", role: "user", text: "hi" },

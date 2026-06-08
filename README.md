@@ -116,8 +116,8 @@ lore index ~/.hermes --source hermes     # reads Hermes's SQLite state store
 
 Cursor and Hermes keep their history in a SQLite database rather than JSONL
 files; point `lore index` at the directory and the adapter reads the store
-directly. Cursor stores no tool-call data, so none is fabricated — its sessions
-come in honestly text-only.
+directly. Current sampled Cursor rows expose `toolResults` fields but only empty
+arrays, so the Cursor adapter indexes text only and fabricates no tool calls.
 
 Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.

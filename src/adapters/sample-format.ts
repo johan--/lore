@@ -48,6 +48,7 @@ export interface SampleFormatOptions {
 
 const SQLITE_MAGIC = "SQLite format 3";
 const CANDIDATE_EXTENSIONS = [".jsonl", ".db", ".vscdb", ".sqlite", ".sqlite3", ".json"];
+const SQLITE_ROW_SAMPLE_LIMIT = 1000;
 
 /**
  * Summarize a transcript directory's on-disk shape so an onboarding agent (or
@@ -158,11 +159,14 @@ function describeSqlite(path: string): TableShape[] {
       .all() as { name: string }[];
     const shapes: TableShape[] = [];
     for (const { name } of tables) {
-      const columns = (db.prepare(`PRAGMA table_info("${name}")`).all() as { name: string }[]).map(
+      const quoted = quoteIdent(name);
+      const columns = (db.prepare(`PRAGMA table_info(${quoted})`).all() as { name: string }[]).map(
         (c) => c.name,
       );
-      const count = db.prepare(`SELECT count(*) AS n FROM "${name}"`).get() as { n: number };
-      shapes.push({ name, columns, rowCount: count?.n ?? 0 });
+      const rows = db
+        .prepare(`SELECT 1 FROM ${quoted} LIMIT ${SQLITE_ROW_SAMPLE_LIMIT + 1}`)
+        .all() as unknown[];
+      shapes.push({ name, columns, rowCount: Math.min(rows.length, SQLITE_ROW_SAMPLE_LIMIT) });
     }
     return shapes;
   } catch {
@@ -170,6 +174,10 @@ function describeSqlite(path: string): TableShape[] {
   } finally {
     db?.close();
   }
+}
+
+function quoteIdent(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 /** JSONL: collect line types, top-level keys, and a few raw sample lines. */

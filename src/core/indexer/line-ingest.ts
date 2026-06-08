@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type {
   DiscoveredFile,
@@ -78,10 +78,9 @@ export function lineIngest(mapper: LineMapper) {
       seq++;
     }
 
-    const fileMetadata = mapper.getFileMetadata?.(
-      pending.map((row) => row.line),
-      ctx.sourceFileId,
-    );
+    const fileMetadata = mapper.getFileMetadata
+      ? mapper.getFileMetadata(await readNonEmptyLines(file.path), ctx.sourceFileId)
+      : undefined;
 
     const messages: MessageRecord[] = [];
     const toolCalls: ToolCallRecord[] = [];
@@ -109,16 +108,22 @@ export function lineIngest(mapper: LineMapper) {
 
     // Persist a head-region hash covering the current file size, so the next
     // re-index can compare against this exact region.
-    const storeBytes = stats ? Math.min(PREFIX_BYTES, stats.size) : 0;
+    const finalStats = await stat(file.path).catch(() => null);
+    const storeBytes = finalStats ? Math.min(PREFIX_BYTES, finalStats.size) : 0;
     const storeHash = storeBytes > 0 ? await prefixHash(file.path, storeBytes) : null;
     const resumeToken: ResumeToken = {
       kind: "byte",
-      byteOffset: stats ? stats.size : 0,
+      byteOffset: finalStats ? finalStats.size : 0,
       lineCount: seq,
       prefixSha256: storeHash,
-      mtime: stats ? stats.mtime.toISOString() : null,
+      mtime: finalStats ? finalStats.mtime.toISOString() : null,
     };
 
     return { mode: plan.mode, messages, toolCalls, skipped, resumeToken };
   };
+}
+
+async function readNonEmptyLines(path: string): Promise<string[]> {
+  const content = await readFile(path, "utf8");
+  return content.split("\n").filter((line) => line.trim().length > 0);
 }

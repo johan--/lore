@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 import {
   computeMessageId,
@@ -72,10 +73,92 @@ function parseToolCalls(raw: string | null): HermesToolCall[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as HermesToolCall[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((call): call is Record<string, unknown> => call !== null && typeof call === "object")
+      .map(normalizeToolCall);
   } catch {
     return [];
   }
+}
+
+function normalizeToolCall(call: Record<string, unknown>): HermesToolCall {
+  const fn = call["function"];
+  const rawFunction = fn && typeof fn === "object" && !Array.isArray(fn) ? fn : undefined;
+  const rawArgs = rawFunction ? (rawFunction as Record<string, unknown>)["arguments"] : undefined;
+  let args: string | undefined;
+  if (typeof rawArgs === "string") {
+    args = rawArgs;
+  } else if (rawArgs !== undefined) {
+    try {
+      args = JSON.stringify(rawArgs);
+    } catch {
+      args = String(rawArgs);
+    }
+  }
+  return {
+    id: typeof call["id"] === "string" ? call["id"] : undefined,
+    call_id: typeof call["call_id"] === "string" ? call["call_id"] : undefined,
+    function: rawFunction
+      ? {
+          name:
+            typeof (rawFunction as Record<string, unknown>)["name"] === "string"
+              ? ((rawFunction as Record<string, unknown>)["name"] as string)
+              : undefined,
+          arguments: args,
+        }
+      : undefined,
+  };
+}
+
+function fingerprintRows(
+  db: Database.Database,
+  sessionId: string,
+  maxRowId: number | null,
+): string | null {
+  if (maxRowId === null) return null;
+  const rows = db
+    .prepare(
+      "SELECT id, role, content, tool_call_id, tool_calls, tool_name, timestamp FROM messages WHERE session_id = ? AND id <= ? ORDER BY id",
+    )
+    .all(sessionId, maxRowId) as HermesRow[];
+  const hash = createHash("sha256");
+  for (const row of rows) {
+    hash
+      .update(String(row.id))
+      .update("\0")
+      .update(row.role)
+      .update("\0")
+      .update(row.content ?? "")
+      .update("\0")
+      .update(row.tool_call_id ?? "")
+      .update("\0")
+      .update(row.tool_calls ?? "")
+      .update("\0")
+      .update(row.tool_name ?? "")
+      .update("\0")
+      .update(row.timestamp === null ? "" : String(row.timestamp))
+      .update("\0");
+  }
+  return hash.digest("hex");
+}
+
+function findPriorAssistantCall(
+  db: Database.Database,
+  sessionId: string,
+  callId: string,
+  beforeRowId: number,
+): { messageId: number; call: HermesToolCall } | null {
+  const candidates = db
+    .prepare(
+      "SELECT id, tool_calls FROM messages WHERE session_id = ? AND role = 'assistant' AND id < ? AND tool_calls LIKE '%' || ? || '%' ORDER BY id DESC",
+    )
+    .all(sessionId, beforeRowId, callId) as { id: number; tool_calls: string | null }[];
+  for (const candidate of candidates) {
+    const call = parseToolCalls(candidate.tool_calls).find((c) => (c.call_id ?? c.id) === callId);
+    if (call) return { messageId: candidate.id, call };
+  }
+  return null;
 }
 
 /**
@@ -111,14 +194,26 @@ export async function ingestHermesConversation(
       .get(sessionId) as { maxRowId: number | null };
     const maxRowId = maxRow?.maxRowId ?? null;
 
-    const plan = planReindex(ctx.priorToken, { kind: "rowid", maxRowId });
+    const prefixFingerprint =
+      ctx.priorToken?.kind === "rowid" && ctx.priorToken.fingerprint
+        ? fingerprintRows(db, sessionId, ctx.priorToken.value)
+        : null;
+    const plan = planReindex(ctx.priorToken, {
+      kind: "rowid",
+      maxRowId,
+      fingerprint: prefixFingerprint,
+    });
     if (plan.mode === "skip") {
       return {
         mode: "skip",
         messages: [],
         toolCalls: [],
         skipped: 0,
-        resumeToken: ctx.priorToken ?? { kind: "rowid", value: maxRowId ?? 0 },
+        resumeToken: ctx.priorToken ?? {
+          kind: "rowid",
+          value: maxRowId ?? 0,
+          fingerprint: fingerprintRows(db, sessionId, maxRowId) ?? undefined,
+        },
       };
     }
 
@@ -161,6 +256,42 @@ export async function ingestHermesConversation(
           paired.result = result.text;
           paired.isError = detectError(content);
           paired.truncated = paired.truncated || result.truncated;
+        } else if (callId) {
+          const prior = findPriorAssistantCall(db, sessionId, callId, row.id);
+          if (prior) {
+            const assistantMessageId = computeMessageId(
+              ctx.sourceFileId,
+              String(prior.messageId),
+              prior.messageId,
+            );
+            const input = cap(prior.call.function?.arguments ?? "", maxChars);
+            toolCalls.push({
+              toolCallId: `${assistantMessageId}:${callId}`,
+              sourceFileId: ctx.sourceFileId,
+              sessionId: ctx.sessionId,
+              messageId: assistantMessageId,
+              toolUseId: callId,
+              toolName:
+                typeof prior.call.function?.name === "string" ? prior.call.function.name : "",
+              input: input.text,
+              result: result.text,
+              isError: detectError(content),
+              truncated: input.truncated || result.truncated,
+            });
+          } else {
+            toolCalls.push({
+              toolCallId: `${messageId}:result:${callId}`,
+              sourceFileId: ctx.sourceFileId,
+              sessionId: ctx.sessionId,
+              messageId,
+              toolUseId: callId,
+              toolName: typeof row.tool_name === "string" ? row.tool_name : "",
+              input: "",
+              result: result.text,
+              isError: detectError(content),
+              truncated: result.truncated,
+            });
+          }
         } else {
           toolCalls.push({
             toolCallId: `${messageId}:result:${callId || row.id}`,
@@ -251,7 +382,11 @@ export async function ingestHermesConversation(
       messages,
       toolCalls,
       skipped,
-      resumeToken: { kind: "rowid", value: maxRowId ?? startRowid },
+      resumeToken: {
+        kind: "rowid",
+        value: maxRowId ?? startRowid,
+        fingerprint: fingerprintRows(db, sessionId, maxRowId) ?? undefined,
+      },
     };
   } finally {
     db?.close();

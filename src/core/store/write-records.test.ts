@@ -129,6 +129,65 @@ describe("writeRecordBatch", () => {
     expect(listSessions(db, {})).toHaveLength(1);
   });
 
+  it("rejects rows that do not belong to the batch source file/session", () => {
+    expect(() =>
+      writeRecordBatch(db, {
+        sourceFile: sourceFile(),
+        messages: [
+          message({
+            messageId: "m1",
+            sourceFileId: "other-file",
+            text: "should not land",
+          }),
+        ],
+        toolCalls: [],
+      }),
+    ).toThrow(/does not match batch source\/session/);
+
+    expect(searchMemory(db, "land")).toHaveLength(0);
+  });
+
+  it("recomputes the old session if a source file moves sessions", () => {
+    writeRecordBatch(db, {
+      sourceFile: sourceFile({ sourceFileId: "moving-file", sessionId: "sess-a" }),
+      messages: [
+        message({
+          sourceFileId: "moving-file",
+          sessionId: "sess-a",
+          messageId: "m1",
+          text: "alpha session",
+        }),
+      ],
+      toolCalls: [],
+    });
+
+    writeRecordBatch(
+      db,
+      {
+        sourceFile: sourceFile({ sourceFileId: "moving-file", sessionId: "sess-b" }),
+        messages: [
+          message({
+            sourceFileId: "moving-file",
+            sessionId: "sess-b",
+            messageId: "m2",
+            text: "beta session",
+          }),
+        ],
+        toolCalls: [],
+      },
+      { mode: "full" },
+    );
+
+    const oldSession = db
+      .prepare("SELECT message_count FROM sessions WHERE session_id = ?")
+      .get("sess-a") as { message_count: number };
+    const newSession = db
+      .prepare("SELECT message_count FROM sessions WHERE session_id = ?")
+      .get("sess-b") as { message_count: number };
+    expect(oldSession.message_count).toBe(0);
+    expect(newSession.message_count).toBe(1);
+  });
+
   it("redacts credentials in message text and tool payloads when opted in", () => {
     writeRecordBatch(
       db,

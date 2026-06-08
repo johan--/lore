@@ -52,6 +52,24 @@ function redactToolCall(call: ToolCallRecord): ToolCallRecord {
   };
 }
 
+function assertBatchMembership(
+  batch: RecordBatch,
+  messages: MessageRecord[],
+  toolCalls: ToolCallRecord[],
+): void {
+  const { sourceFileId, sessionId } = batch.sourceFile;
+  for (const message of messages) {
+    if (message.sourceFileId !== sourceFileId || message.sessionId !== sessionId) {
+      throw new Error(`Message ${message.messageId} does not match batch source/session`);
+    }
+  }
+  for (const call of toolCalls) {
+    if (call.sourceFileId !== sourceFileId || call.sessionId !== sessionId) {
+      throw new Error(`Tool call ${call.toolCallId} does not match batch source/session`);
+    }
+  }
+}
+
 /**
  * Write a normalized batch in one transaction: optional delete-before-rewrite,
  * the source-file row, every message and tool call (idempotent upserts), then a
@@ -66,13 +84,21 @@ export function writeRecordBatch(
   const mode = opts.mode ?? "append";
   const messages = opts.redact ? batch.messages.map(redactMessage) : batch.messages;
   const toolCalls = opts.redact ? batch.toolCalls.map(redactToolCall) : batch.toolCalls;
+  assertBatchMembership(batch, messages, toolCalls);
 
   const apply = db.transaction(() => {
+    const previous = db
+      .prepare("SELECT session_id AS sessionId FROM source_files WHERE source_file_id = ?")
+      .get(batch.sourceFile.sourceFileId) as { sessionId: string } | undefined;
+
     if (mode === "full") deleteFileRows(db, batch.sourceFile.sourceFileId);
     upsertSourceFile(db, batch.sourceFile);
     for (const message of messages) upsertMessage(db, message);
     for (const call of toolCalls) upsertToolCall(db, call);
     recomputeSession(db, batch.sourceFile.sessionId);
+    if (previous?.sessionId && previous.sessionId !== batch.sourceFile.sessionId) {
+      recomputeSession(db, previous.sessionId);
+    }
   });
   apply();
 

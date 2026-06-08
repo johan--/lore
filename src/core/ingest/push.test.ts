@@ -78,10 +78,28 @@ describe("pushRecords", () => {
     expect(hits.map((h) => h.messageId)).toEqual(["m1"]);
   });
 
+  it("accepts an unknown harness namespace for the zero-setup push path", () => {
+    const result = pushRecords(db, {
+      sourceFile: sourceFile({ source: "homegrown-cli", sourceFileId: "homegrown-file" }),
+      messages: [
+        message({
+          sourceFileId: "homegrown-file",
+          messageId: "m1",
+          text: "custom harness bridge",
+        }),
+      ],
+    });
+
+    expect(result.messages).toBe(1);
+    expect(searchMemory(db, "bridge", { source: "homegrown-cli" }).map((h) => h.messageId)).toEqual(
+      ["m1"],
+    );
+  });
+
   it("rejects a malformed batch at the boundary without writing anything", () => {
     expect(() =>
       pushRecords(db, {
-        sourceFile: sourceFile({ source: "not-a-source" as never }),
+        sourceFile: sourceFile({ source: "" }),
         messages: [message({ messageId: "m1", text: "should not land" })],
       }),
     ).toThrow();

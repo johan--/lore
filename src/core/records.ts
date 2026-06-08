@@ -8,7 +8,7 @@ import { z } from "zod";
  */
 
 export const SOURCES = ["claude-code", "codex", "openclaw", "cursor", "hermes"] as const;
-export const sourceSchema = z.enum(SOURCES);
+export const sourceSchema = z.string().min(1);
 export type Source = z.infer<typeof sourceSchema>;
 
 /**
@@ -30,7 +30,16 @@ export const resumeTokenSchema = z.discriminatedUnion("kind", [
     prefixSha256: z.string().nullable(),
     mtime: z.string().nullable(),
   }),
-  z.object({ kind: z.literal("rowid"), value: z.number().int().nonnegative() }),
+  z.object({
+    kind: z.literal("rowid"),
+    value: z.number().int().nonnegative(),
+    /**
+     * Optional fingerprint of the already-indexed row prefix. New DB-backed
+     * adapters set it so a changed/deleted row below the max row id forces a full
+     * re-index instead of being skipped as "unchanged." Optional for legacy tokens.
+     */
+    fingerprint: z.string().optional(),
+  }),
   z.object({ kind: z.literal("hash"), value: z.string() }),
 ]);
 export type ResumeToken = z.infer<typeof resumeTokenSchema>;

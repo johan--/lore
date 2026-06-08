@@ -110,6 +110,30 @@ describe("ingestHermesConversation", () => {
     expect(call.isError).toBe(false);
   });
 
+  it("pairs a tool result appended after the assistant row was already indexed", async () => {
+    seed([
+      { role: "user", content: "list the dir" },
+      { role: "assistant", content: "", toolCalls: toolCall("call_1", "list_dir", '{"path":"."}') },
+    ]);
+    const run1 = ctxFor(null);
+    const first = await ingestHermesConversation(run1.file, run1.ctx);
+    expect(first.toolCalls).toHaveLength(1);
+    const original = first.toolCalls[0]!;
+    expect(original.result).toBeNull();
+
+    seed([
+      { role: "tool", content: '{"success": true, "output": "AGENTS.md"}', toolCallId: "call_1" },
+    ]);
+    const run2 = ctxFor(first.resumeToken);
+    const second = await ingestHermesConversation(run2.file, run2.ctx);
+
+    expect(second.mode).toBe("append");
+    expect(second.toolCalls).toHaveLength(1);
+    expect(second.toolCalls[0]?.toolCallId).toBe(original.toolCallId);
+    expect(second.toolCalls[0]?.input).toBe('{"path":"."}');
+    expect(second.toolCalls[0]?.result).toContain("AGENTS.md");
+  });
+
   it("marks a failed tool result as an error", async () => {
     seed([
       { role: "assistant", content: "", toolCalls: toolCall("call_x", "run", "{}") },
@@ -118,6 +142,27 @@ describe("ingestHermesConversation", () => {
     const { file, ctx } = ctxFor(null);
     const result = await ingestHermesConversation(file, ctx);
     expect(result.toolCalls[0]?.isError).toBe(true);
+  });
+
+  it("normalizes non-string tool arguments instead of throwing", async () => {
+    seed([
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          {
+            id: "call_obj",
+            call_id: "call_obj",
+            type: "function",
+            function: { name: "run", arguments: { path: "." } },
+          },
+        ],
+      },
+    ]);
+    const { file, ctx } = ctxFor(null);
+    const result = await ingestHermesConversation(file, ctx);
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]?.input).toBe('{"path":"."}');
   });
 
   it("mints stable message ids across an identical re-ingest", async () => {
@@ -147,6 +192,28 @@ describe("ingestHermesConversation", () => {
     expect(second.mode).toBe("append");
     expect(second.messages).toHaveLength(1);
     expect(second.messages[0]?.text).toBe("newer question");
+  });
+
+  it("full re-indexes when an already-indexed Hermes row disappears below the max rowid", async () => {
+    seed([
+      { role: "user", content: "older" },
+      { role: "assistant", content: "middle" },
+      { role: "user", content: "newer" },
+    ]);
+    const run1 = ctxFor(null);
+    const first = await ingestHermesConversation(run1.file, run1.ctx);
+
+    const db = new Database(dbPath);
+    db.prepare("DELETE FROM messages WHERE session_id = ? AND content = ?").run(
+      sessionId,
+      "middle",
+    );
+    db.close();
+
+    const run2 = ctxFor(first.resumeToken);
+    const second = await ingestHermesConversation(run2.file, run2.ctx);
+    expect(second.mode).toBe("full");
+    expect(second.messages.map((m) => m.text)).toEqual(["older", "newer"]);
   });
 
   it("skips when no new rows arrived since the watermark", async () => {

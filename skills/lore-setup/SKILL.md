@@ -140,14 +140,16 @@ that matches the source:
   read-only, filter to the one session named by the discovered file, and resume
   from `ctx.priorToken` using `planReindex` from
   `src/core/indexer/watermark.ts`. Worked examples: `src/adapters/cursor/`
-  (SQLite, honestly text-only — Cursor stores no tool data, so none is
-  fabricated) and `src/adapters/hermes/` (SQLite, real tool calls paired across a
-  flat timeline).
+  (SQLite, honestly text-only for current sampled data — Cursor exposes
+  `toolResults` fields but sampled rows were empty, so none is fabricated) and
+  `src/adapters/hermes/` (SQLite, real tool calls paired across a flat timeline).
 
 Deterministic procedure:
 
-1. Add the new source name to the `SOURCES` enum in `src/core/records.ts`. The
-   conformance harness rejects any adapter whose `source` is not in this enum.
+1. Add the new source name to the built-in `SOURCES` list in `src/core/records.ts`.
+   The conformance harness rejects any committed adapter whose `source` is not in
+   this list. Push-only harnesses do not need this; they can use any non-empty
+   source namespace in their records.
 2. Create `src/adapters/<name>/` and model it on the closest worked example
    above. Reuse `computeMessageId` from `src/core/records.ts` so message ids stay
    stable (`hash(sourceFileId + uuid + seq)`).

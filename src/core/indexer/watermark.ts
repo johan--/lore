@@ -40,7 +40,7 @@ export type ReindexPlan =
 /** Current state of the source, tagged by the resume strategy it supports. */
 export type CurrentSource =
   | { kind: "byte"; stats: FileStats; prefixHash: string | null }
-  | { kind: "rowid"; maxRowId: number | null }
+  | { kind: "rowid"; maxRowId: number | null; fingerprint?: string | null }
   | { kind: "hash"; hash: string };
 
 /**
@@ -57,7 +57,11 @@ export function planReindex(prior: ResumeToken | null, current: CurrentSource): 
         current.prefixHash,
       );
     case "rowid":
-      return planRowidReindex(prior?.kind === "rowid" ? prior : null, current.maxRowId);
+      return planRowidReindex(
+        prior?.kind === "rowid" ? prior : null,
+        current.maxRowId,
+        current.fingerprint,
+      );
     case "hash":
       return planHashReindex(prior?.kind === "hash" ? prior : null, current.hash);
   }
@@ -83,13 +87,15 @@ export function planByteReindex(
     return { mode: "full" };
   }
 
-  // Same size and mtime → nothing happened since last index.
-  if (stats.size === prior.byteOffset && stats.mtime === prior.mtime) {
-    return { mode: "skip" };
+  if (stats.size === prior.byteOffset) {
+    return stats.mtime === prior.mtime ? { mode: "skip" } : { mode: "full" };
   }
 
-  // Grew (or only mtime changed) with a matching head → append the tail.
-  return { mode: "append", from: prior };
+  // Grew with a verified matching head → append the tail.
+  if (prior.prefixSha256 && currentPrefixHash && prior.prefixSha256 === currentPrefixHash) {
+    return { mode: "append", from: prior };
+  }
+  return { mode: "full" };
 }
 
 /**
@@ -100,10 +106,14 @@ export function planByteReindex(
 export function planRowidReindex(
   prior: RowidResumeToken | null,
   maxRowId: number | null,
+  currentFingerprint: string | null = null,
 ): ReindexPlan {
   if (!prior) return { mode: "full" };
   if (maxRowId === null) return { mode: "full" };
   if (maxRowId < prior.value) return { mode: "full" };
+  if (prior.fingerprint && currentFingerprint && prior.fingerprint !== currentFingerprint) {
+    return { mode: "full" };
+  }
   if (maxRowId === prior.value) return { mode: "skip" };
   return { mode: "append", from: prior };
 }

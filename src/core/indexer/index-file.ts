@@ -60,7 +60,15 @@ function readResumeToken(db: Store, sourceFileId: string): ResumeToken | null {
     | undefined;
   if (!row) return null;
   if (row.resume_token) {
-    return resumeTokenSchema.parse(JSON.parse(row.resume_token));
+    try {
+      return resumeTokenSchema.parse(JSON.parse(row.resume_token));
+    } catch (err) {
+      logger.warn("ignoring invalid resume token; file will be fully re-indexed", {
+        sourceFileId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
   }
   return {
     kind: "byte",
