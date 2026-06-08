@@ -1,0 +1,62 @@
+{
+  "skill_name": "lore",
+  "notes": "Deterministic graders live in the repo test suite, not as eyeballed assertions. The envelope-parity grader is src/cli/cli-mcp-parity.test.ts (one seeded fixture store; every `lore … --json` envelope compared byte-for-byte to the matching MCP tool). The real-store smoke proof is documented in real-store-smoke.md (run against ~/.lore/lore.db). Run `npm run test` to grade parity; run the smoke commands by hand for the live-store check.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What did we decide about the FTS tokenizer in a past session? Use lore.",
+      "expected_output": "Searches with `lore search`, takes the message id handed back (never invents one), reads it with `lore get --full`, and optionally `lore context` around it. Does NOT page a whole session into context. Answers from the recalled message.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "uses-search-first",
+          "text": "Begins with `lore search` (not a guessed id or a session dump)"
+        },
+        {
+          "id": "ids-from-output",
+          "text": "Every id passed to get/context/session came verbatim from a prior command's output"
+        },
+        {
+          "id": "reads-full",
+          "text": "Reads the specific message in full with `lore get <id> --full` instead of skimming many snippets"
+        },
+        { "id": "no-dump", "text": "Never attempts to page an entire session into context" },
+        { "id": "server-free", "text": "Uses the CLI only; does not start or require `lore serve`" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Pull up my most recent session in this repo and find where we touched auth.",
+      "expected_output": "Lists sessions (`lore sessions --project <pwd>` newest-first) to get a real session id, then scopes search to it (`lore search auth --session <id>`), then jumps with `lore session <id> --around <message-id>` rather than walking from the top.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "sessions-for-id",
+          "text": "Uses `lore sessions` to obtain a real session id before drilling"
+        },
+        { "id": "scoped-search", "text": "Scopes search to that session with `--session <id>`" },
+        {
+          "id": "around-not-walk",
+          "text": "Uses `--around <message-id>` to jump, not page-walking the whole session"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a finished live session to lore from a JSON batch and confirm it is searchable, without running any server.",
+      "expected_output": "Pipes the batch to `lore push`, observes the success result (or the `{error:invalid_batch}` envelope on failure), then confirms with `lore search` against the new content — all server-free.",
+      "files": [],
+      "assertions": [
+        { "id": "uses-push", "text": "Writes via `lore push` from stdin (not the MCP server)" },
+        {
+          "id": "verifies-searchable",
+          "text": "Confirms the write by searching for the new content with the CLI"
+        },
+        {
+          "id": "honest-errors",
+          "text": "Recognizes the `{error:invalid_batch}` envelope + non-zero exit as a rejected write"
+        }
+      ]
+    }
+  ]
+}
