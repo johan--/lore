@@ -65,6 +65,18 @@ export function initSchema(db: DatabaseType.Database): void {
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages (timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_agent ON messages (agent);
     CREATE INDEX IF NOT EXISTS idx_messages_skill ON messages (skill);
+    -- EQP-proven on the real store (352k messages): with this index the planner
+    -- runs list_sessions and timeline project filters as a SEARCH on
+    -- idx_messages_project (project=?), visiting only the matching project's rows
+    -- instead of a SCAN over idx_messages_session across every session. That plan
+    -- change is cache-independent; one cold-cache measurement saw a
+    -- project-filtered list_sessions fall from ~12s to ~3s. It is NOT used by
+    -- keyword search (FTS MATCH resolves rowids first, project is a residual
+    -- filter). A matching index on source_files(source) was tested and dropped:
+    -- the source filter still drives from messages via the session index, so the
+    -- planner never uses a source_files index (and that table is tiny anyway,
+    -- ~1.3k rows).
+    CREATE INDEX IF NOT EXISTS idx_messages_project ON messages (project);
 
     CREATE TABLE IF NOT EXISTS tool_calls (
       tool_call_id   TEXT PRIMARY KEY,
