@@ -135,7 +135,8 @@ export function createLoreServer(db: Store): McpServer {
     {
       description:
         "Return one logical session as a single chronological timeline, folding the primary thread " +
-        "and all subagent files together. Paginated by an opaque cursor. Text is elided.",
+        "and all subagent files together. Paginated by an opaque cursor — a session can run to " +
+        "thousands of messages, so this pages, it never dumps. Page through with the cursor. Text is elided.",
       inputSchema: {
         session_id: z.string().describe("The session_id to fetch."),
         cursor: z.string().optional().describe("Opaque cursor from a prior page."),
@@ -144,7 +145,7 @@ export function createLoreServer(db: Store): McpServer {
           .int()
           .positive()
           .optional()
-          .describe("Max messages per page (default 100)."),
+          .describe("Max messages per page (default 30, hard-capped at 40). Page with the cursor."),
       },
     },
     async ({ session_id, cursor, limit }) => {

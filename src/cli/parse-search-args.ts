@@ -26,6 +26,8 @@ export interface ParsedSearchArgs {
   /** First positional token, the FTS query. Undefined when only flags are given. */
   query: string | undefined;
   opts: SearchOptions;
+  /** When true, rank by recency-blended relevance (findRelevant) instead of pure bm25. */
+  relevant: boolean;
   json: boolean;
 }
 
@@ -44,12 +46,17 @@ export function parseSearchArgs(rest: string[]): ParsedSearchArgs {
   const opts: SearchOptions = {};
   let query: string | undefined;
   let json = false;
+  let relevant = false;
 
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === undefined) continue;
     if (arg === "--json") {
       json = true;
+      continue;
+    }
+    if (arg === "--relevant") {
+      relevant = true;
       continue;
     }
     if (arg.startsWith("--")) {
@@ -78,7 +85,7 @@ export function parseSearchArgs(rest: string[]): ParsedSearchArgs {
     if (query === undefined) query = arg;
   }
 
-  return { query, opts, json };
+  return { query, opts, relevant, json };
 }
 
 /** Parse `lore sessions` argv into ListSessionsOptions and the --json toggle. */

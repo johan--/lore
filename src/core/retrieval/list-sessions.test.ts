@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { openStore, type Store } from "../store/open-store.js";
 import { upsertMessage, upsertSourceFile } from "../store/upsert.js";
 import { listSessions } from "./list-sessions.js";
+import { MAX_RESULTS } from "../limits.js";
 import type { MessageRecord, SourceFileRecord } from "../records.js";
 
 function msg(
@@ -135,5 +136,22 @@ describe("listSessions", () => {
     expect(listSessions(db, { until: "2026-05-15T00:00:00.000Z" }).map((r) => r.sessionId)).toEqual(
       ["sess-1"],
     );
+  });
+
+  it("hard-caps an oversized limit at MAX_RESULTS", () => {
+    const db = freshStore();
+    for (let i = 0; i < MAX_RESULTS + 10; i++) {
+      upsertMessage(
+        db,
+        msg({
+          messageId: `s${i}`,
+          seq: 0,
+          timestamp: `2026-05-01T00:00:00.000Z`,
+          sessionId: `sess-${i}`,
+          sourceFileId: `sf-${i}`,
+        }),
+      );
+    }
+    expect(listSessions(db, { limit: 100_000 })).toHaveLength(MAX_RESULTS);
   });
 });

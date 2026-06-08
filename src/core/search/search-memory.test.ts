@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { openStore, type Store } from "../store/open-store.js";
 import { upsertMessage, upsertToolCall, upsertSourceFile } from "../store/upsert.js";
 import { searchMemory } from "./search-memory.js";
+import { MAX_RESULTS } from "../limits.js";
 import type { MessageRecord, ToolCallRecord, SourceFileRecord } from "../records.js";
 
 function msg(
@@ -97,6 +98,17 @@ describe("searchMemory", () => {
       );
     }
     expect(searchMemory(db, "alamo", { limit: 3 })).toHaveLength(3);
+  });
+
+  it("hard-caps an oversized limit at MAX_RESULTS so no caller can dump", () => {
+    const db = freshStore();
+    for (let i = 0; i < MAX_RESULTS + 10; i++) {
+      upsertMessage(
+        db,
+        msg({ messageId: `m${i}`, uuid: `u${i}`, seq: i, text: `alamo number ${i}` }),
+      );
+    }
+    expect(searchMemory(db, "alamo", { limit: 100_000 })).toHaveLength(MAX_RESULTS);
   });
 });
 

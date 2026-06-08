@@ -1,5 +1,6 @@
 import type { Store } from "../store/open-store.js";
 import { searchMemory, type SearchHit, type SearchOptions } from "./search-memory.js";
+import { clampLimit, MAX_RESULTS } from "../limits.js";
 
 export interface FindRelevantOptions extends SearchOptions {
   /** Reference time for the recency blend (ISO-8601). Defaults to now. */
@@ -21,7 +22,7 @@ export function findRelevant(
   query: string,
   opts: FindRelevantOptions = {},
 ): SearchHit[] {
-  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const limit = clampLimit(opts.limit, DEFAULT_LIMIT, MAX_RESULTS);
   const now = typeof opts.now === "string" ? Date.parse(opts.now) : Date.now();
   const candidatePool = Math.max(limit * 5, 100);
 

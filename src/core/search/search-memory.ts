@@ -1,5 +1,6 @@
 import type { Store } from "../store/open-store.js";
 import { sanitizeFtsQuery } from "./sanitize-fts.js";
+import { clampLimit, MAX_RESULTS } from "../limits.js";
 
 export interface SearchHit {
   messageId: string;
@@ -64,7 +65,7 @@ interface HitRow {
 export function searchMemory(db: Store, query: string, opts: SearchOptions = {}): SearchHit[] {
   const sanitized = sanitizeFtsQuery(query);
   if (!sanitized) return [];
-  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const limit = clampLimit(opts.limit, DEFAULT_LIMIT, MAX_RESULTS);
 
   const where: string[] = ["messages_fts MATCH ?"];
   const params: (string | number)[] = [sanitized];

@@ -1,4 +1,5 @@
 import type { Store } from "../store/open-store.js";
+import { clampLimit, MAX_RESULTS } from "../limits.js";
 
 export interface SessionSummary {
   sessionId: string;
@@ -40,7 +41,7 @@ interface SummaryRow {
  * caller can scope to one harness namespace.
  */
 export function listSessions(db: Store, opts: ListSessionsOptions = {}): SessionSummary[] {
-  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const limit = clampLimit(opts.limit, DEFAULT_LIMIT, MAX_RESULTS);
 
   const where: string[] = [];
   const params: (string | number)[] = [];

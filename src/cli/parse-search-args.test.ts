@@ -57,6 +57,16 @@ describe("parseSearchArgs", () => {
     expect(opts.limit).toBeUndefined();
     expect(json).toBe(true);
   });
+
+  it("parses --relevant as a boolean and keeps it out of the query", () => {
+    const { query, relevant } = parseSearchArgs(["alamo", "--relevant"]);
+    expect(relevant).toBe(true);
+    expect(query).toBe("alamo");
+  });
+
+  it("defaults relevant to false when the flag is absent", () => {
+    expect(parseSearchArgs(["alamo"]).relevant).toBe(false);
+  });
 });
 
 describe("parseSessionsArgs", () => {
