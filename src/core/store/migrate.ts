@@ -37,6 +37,18 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
     up: (db) => {
       db.exec("ALTER TABLE messages ADD COLUMN content_hash TEXT");
       db.exec("CREATE INDEX IF NOT EXISTS idx_messages_content_hash ON messages (content_hash)");
+      // Re-scope the FTS sync trigger to text-only BEFORE backfilling. The v1
+      // trigger fired on any UPDATE, so writing content_hash would needlessly
+      // re-index every row's text in FTS5 — turning this backfill into a full
+      // FTS rebuild under one lock. Scoped to `OF text`, the backfill touches
+      // only the new column and leaves the index alone.
+      db.exec(`
+        DROP TRIGGER IF EXISTS messages_au;
+        CREATE TRIGGER messages_au AFTER UPDATE OF text ON messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+          INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+        END;
+      `);
       backfillContentHash(db);
     },
   },

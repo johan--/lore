@@ -116,6 +116,29 @@ describe("writeRecordBatch", () => {
     expect(searchMemory(db, "gamma")).toHaveLength(1);
   });
 
+  it("resyncs FTS when an existing message's text changes", () => {
+    writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      messages: [message({ messageId: "m1", uuid: "u1", seq: 0, text: "original alpha" })],
+      toolCalls: [],
+    });
+    expect(searchMemory(db, "alpha")).toHaveLength(1);
+
+    // Re-write the same message id with new text: the AFTER UPDATE OF text
+    // trigger must keep FTS in sync (old token gone, new token searchable).
+    writeRecordBatch(
+      db,
+      {
+        sourceFile: sourceFile(),
+        messages: [message({ messageId: "m1", uuid: "u1", seq: 0, text: "morphed delta" })],
+        toolCalls: [],
+      },
+      { mode: "append" },
+    );
+    expect(searchMemory(db, "alpha")).toHaveLength(0);
+    expect(searchMemory(db, "delta")).toHaveLength(1);
+  });
+
   it("is idempotent: re-writing the same batch never duplicates rows", () => {
     const batch = {
       sourceFile: sourceFile(),

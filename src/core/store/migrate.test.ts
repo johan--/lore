@@ -50,6 +50,16 @@ describe("schema migrations", () => {
     const byId = new Map(rows.map((r) => [r.id, r.hash]));
     expect(byId.get("m-rich")).toBeTruthy();
     expect(byId.get("m-thin")).toBeNull();
+
+    // The backfill must not disturb FTS: the rich row is still searchable.
+    const fts = db
+      .prepare(
+        `SELECT m.message_id AS id FROM messages_fts
+           JOIN messages m ON m.rowid = messages_fts.rowid
+          WHERE messages_fts MATCH 'committing'`,
+      )
+      .all() as { id: string }[];
+    expect(fts.map((r) => r.id)).toContain("m-rich");
     db.close();
   });
 });
