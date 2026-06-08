@@ -3,16 +3,9 @@ import { stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { basename } from "node:path";
 import type { Store } from "../store/open-store.js";
-import {
-  deleteFileRows,
-  upsertMessage,
-  upsertSourceFile,
-  upsertToolCall,
-} from "../store/upsert.js";
-import type { SourceFileKind } from "../records.js";
+import { writeRecordBatch } from "../store/write-records.js";
+import type { MessageRecord, SourceFileKind, ToolCallRecord } from "../records.js";
 import { logger } from "../logger.js";
-import { redactSecrets } from "../redact.js";
-import { recomputeSession } from "../store/recompute-session.js";
 import type { SourceAdapter } from "../../adapters/contract.js";
 import { claudeCodeAdapter } from "../../adapters/claude-code/adapter.js";
 import { planReindex, prefixHash, PREFIX_BYTES, type PriorWatermark } from "./watermark.js";
@@ -136,64 +129,60 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
     sourceFileId,
   );
 
-  const apply = db.transaction((rows: Pending[]) => {
-    // A full re-index replaces the file's rows; clear stale ones first so a
-    // rewritten/rotated file never leaves orphans behind.
-    if (plan.mode === "full") deleteFileRows(db, sourceFileId);
-    for (const { line, seq: lineSeq } of rows) {
-      const outcome = adapter.parseLine(line, {
-        sourceFileId,
-        sessionId,
-        seq: lineSeq,
-        source: adapter.source,
-        fileMetadata,
-        maxTextChars: opts.maxTextChars,
-      });
-      if (outcome.kind === "skipped") {
-        skipped++;
-        continue;
-      }
-      const { message, toolCalls: calls } = outcome.parsed;
-      if (opts.redact) {
-        message.text = redactSecrets(message.text).text;
-      }
-      upsertMessage(db, message);
-      messages++;
-      for (const call of calls) {
-        call.sessionId = sessionId;
-        if (opts.redact) {
-          call.input = redactSecrets(call.input).text;
-          if (call.result !== null) call.result = redactSecrets(call.result).text;
-        }
-        upsertToolCall(db, call);
-        toolCalls++;
-      }
+  // Parse the buffered lines into normalized records. Parsing is pure (no DB
+  // access), so it stays outside the write transaction; the shared writer owns
+  // the transaction, delete-before-rewrite, redaction, and the session rollup.
+  const messageRecords: MessageRecord[] = [];
+  const toolCallRecords: ToolCallRecord[] = [];
+  for (const { line, seq: lineSeq } of pending) {
+    const outcome = adapter.parseLine(line, {
+      sourceFileId,
+      sessionId,
+      seq: lineSeq,
+      source: adapter.source,
+      fileMetadata,
+      maxTextChars: opts.maxTextChars,
+    });
+    if (outcome.kind === "skipped") {
+      skipped++;
+      continue;
     }
-  });
-  apply(pending);
+    const { message, toolCalls: calls } = outcome.parsed;
+    messageRecords.push(message);
+    messages++;
+    for (const call of calls) {
+      call.sessionId = sessionId;
+      toolCallRecords.push(call);
+      toolCalls++;
+    }
+  }
 
   // Persist a head-region hash covering the current file size, so the next
   // re-index can compare against this exact region.
   const storeBytes = stats ? Math.min(PREFIX_BYTES, stats.size) : 0;
   const storeHash = storeBytes > 0 ? await prefixHash(opts.path, storeBytes) : null;
 
-  upsertSourceFile(db, {
-    sourceFileId,
-    source: adapter.source,
-    sessionId,
-    kind,
-    agentFile: opts.agentFile ?? null,
-    path: opts.path,
-    byteOffset: stats ? stats.size : 0,
-    lineCount: seq,
-    prefixSha256: storeHash,
-    mtime: stats ? stats.mtime.toISOString() : null,
-    indexedAt: new Date().toISOString(),
-  });
-
-  // Recompute the session rollup from the canonical messages table rather than
-  // this run's partial counts (fixes multi-file sessions and append mode).
-  recomputeSession(db, sessionId);
+  writeRecordBatch(
+    db,
+    {
+      sourceFile: {
+        sourceFileId,
+        source: adapter.source,
+        sessionId,
+        kind,
+        agentFile: opts.agentFile ?? null,
+        path: opts.path,
+        byteOffset: stats ? stats.size : 0,
+        lineCount: seq,
+        prefixSha256: storeHash,
+        mtime: stats ? stats.mtime.toISOString() : null,
+        indexedAt: new Date().toISOString(),
+      },
+      messages: messageRecords,
+      toolCalls: toolCallRecords,
+    },
+    { mode: plan.mode === "full" ? "full" : "append", redact: opts.redact },
+  );
 
   logger.debug("indexed file", { path: opts.path, mode: plan.mode, messages, toolCalls, skipped });
 
