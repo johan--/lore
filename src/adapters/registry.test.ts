@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getAdapter, adapterSources, makeRegistry } from "./registry.js";
 import type { SourceAdapter } from "./contract.js";
+import { lineIngest } from "../core/indexer/line-ingest.js";
 
 describe("adapter registry", () => {
   it("resolves the built-in Claude Code adapter by source name", () => {
@@ -20,7 +21,10 @@ describe("adapter registry", () => {
     const stub: SourceAdapter = {
       source: "codex",
       discover: async () => [],
-      parseLine: () => ({ kind: "skipped", reason: "stub" }),
+      ingest: lineIngest({
+        source: "codex",
+        parseLine: () => ({ kind: "skipped", reason: "stub" }),
+      }),
     };
     const registry = makeRegistry([stub]);
     expect(registry.get("codex")?.source).toBe("codex");

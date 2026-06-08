@@ -7,9 +7,45 @@ import { z } from "zod";
  * Zod-validating them at the boundary, so the core never sees source quirks.
  */
 
-export const SOURCES = ["claude-code", "codex"] as const;
-export const sourceSchema = z.enum(SOURCES);
+export const SOURCES = ["claude-code", "codex", "openclaw", "cursor", "hermes"] as const;
+export const sourceSchema = z.string().min(1);
 export type Source = z.infer<typeof sourceSchema>;
+
+/**
+ * Source-agnostic resume watermark. Each ingestion path resumes differently, so
+ * the token is a tagged union rather than a fixed set of byte fields:
+ *  - `byte`  — append-only text transcripts (Claude Code, Codex, openclaw). The
+ *              byte offset + line count is where the next read starts; the head
+ *              hash distinguishes an in-place rewrite from an append.
+ *  - `rowid` — database-backed sources (e.g. a SQLite table) that resume from the
+ *              last ingested row id.
+ *  - `hash`  — whole-file sources that have no incremental cursor; the content
+ *              hash decides whether anything changed since last index.
+ */
+export const resumeTokenSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("byte"),
+    byteOffset: z.number().int().nonnegative(),
+    lineCount: z.number().int().nonnegative(),
+    prefixSha256: z.string().nullable(),
+    mtime: z.string().nullable(),
+  }),
+  z.object({
+    kind: z.literal("rowid"),
+    value: z.number().int().nonnegative(),
+    /**
+     * Optional fingerprint of the already-indexed row prefix. New DB-backed
+     * adapters set it so a changed/deleted row below the max row id forces a full
+     * re-index instead of being skipped as "unchanged." Optional for legacy tokens.
+     */
+    fingerprint: z.string().optional(),
+  }),
+  z.object({ kind: z.literal("hash"), value: z.string() }),
+]);
+export type ResumeToken = z.infer<typeof resumeTokenSchema>;
+export type ByteResumeToken = Extract<ResumeToken, { kind: "byte" }>;
+export type RowidResumeToken = Extract<ResumeToken, { kind: "rowid" }>;
+export type HashResumeToken = Extract<ResumeToken, { kind: "hash" }>;
 
 export const SOURCE_FILE_KINDS = ["primary", "subagent"] as const;
 export const sourceFileKindSchema = z.enum(SOURCE_FILE_KINDS);
@@ -32,10 +68,22 @@ export const sourceFileRecordSchema = z.object({
   /** For subagent files, the agent file hash/name; null for primary files. */
   agentFile: z.string().nullable(),
   path: z.string().min(1),
+  /**
+   * Physical descriptors of the file. For byte sources these mirror the byte
+   * resume token; for database / whole-file sources they're zero/null and the
+   * authoritative cursor lives in `resumeToken`.
+   */
   byteOffset: z.number().int().nonnegative(),
   lineCount: z.number().int().nonnegative(),
   prefixSha256: z.string().nullable(),
   mtime: z.string().nullable(),
+  /**
+   * Source-agnostic resume watermark. Optional so live-`push` callers needn't
+   * supply one (they re-push idempotently); the file indexer always sets it.
+   * When absent on read, resume falls back to the legacy byte columns above, so
+   * stores indexed before the resume-token migration upgrade cleanly.
+   */
+  resumeToken: resumeTokenSchema.nullable().optional(),
   indexedAt: z.string(),
 });
 export type SourceFileRecord = z.infer<typeof sourceFileRecordSchema>;

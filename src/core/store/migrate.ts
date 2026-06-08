@@ -4,7 +4,7 @@ import type DatabaseType from "better-sqlite3";
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Ordered migration steps. Each step's `to` is the schema version it produces,
@@ -17,7 +17,16 @@ export const SCHEMA_VERSION = 1;
  * Existing user stores are upgraded in order; a fresh store gets the base schema
  * from `initSchema` and is simply stamped to the latest version.
  */
-const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [];
+const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
+  {
+    // Source-agnostic resume: store a tagged ResumeToken (JSON) per source file.
+    // Byte sources keep their legacy byte_offset/line_count/prefix_sha256/mtime
+    // columns (resume falls back to them when this column is null), so existing
+    // stores upgrade without a re-index.
+    to: 2,
+    up: (db) => db.exec("ALTER TABLE source_files ADD COLUMN resume_token TEXT"),
+  },
+];
 
 /** Read the store's current schema version (`PRAGMA user_version`). */
 export function getSchemaVersion(db: DatabaseType.Database): number {

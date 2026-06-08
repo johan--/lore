@@ -1,4 +1,5 @@
 import type { Store } from "./open-store.js";
+import type { Source } from "../records.js";
 import { upsertSession } from "./upsert.js";
 
 /**
@@ -32,7 +33,7 @@ export function recomputeSession(db: Store, sessionId: string): void {
   };
   upsertSession(db, {
     sessionId,
-    source: (row.source as "claude-code" | "codex" | null) ?? "claude-code",
+    source: (row.source as Source | null) ?? "claude-code",
     project: row.project,
     branch: row.branch,
     firstTimestamp: row.first_timestamp,

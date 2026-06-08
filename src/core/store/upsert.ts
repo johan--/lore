@@ -16,15 +16,20 @@ export function upsertSourceFile(db: Store, rec: SourceFileRecord): void {
   db.prepare(
     `INSERT INTO source_files
        (source_file_id, source, session_id, kind, agent_file, path,
-        byte_offset, line_count, prefix_sha256, mtime, indexed_at)
+        byte_offset, line_count, prefix_sha256, mtime, resume_token, indexed_at)
      VALUES
        (@sourceFileId, @source, @sessionId, @kind, @agentFile, @path,
-        @byteOffset, @lineCount, @prefixSha256, @mtime, @indexedAt)
+        @byteOffset, @lineCount, @prefixSha256, @mtime, @resumeToken, @indexedAt)
      ON CONFLICT(source_file_id) DO UPDATE SET
        session_id=excluded.session_id, kind=excluded.kind, agent_file=excluded.agent_file,
        path=excluded.path, byte_offset=excluded.byte_offset, line_count=excluded.line_count,
-       prefix_sha256=excluded.prefix_sha256, mtime=excluded.mtime, indexed_at=excluded.indexed_at`,
-  ).run(rec);
+       prefix_sha256=excluded.prefix_sha256, mtime=excluded.mtime,
+       resume_token=excluded.resume_token, indexed_at=excluded.indexed_at`,
+  ).run({
+    ...rec,
+    // SQLite can't bind an object: store the tagged token as JSON, null when absent.
+    resumeToken: rec.resumeToken ? JSON.stringify(rec.resumeToken) : null,
+  });
 }
 
 export function upsertSession(db: Store, rec: SessionRecord): void {

@@ -1,6 +1,6 @@
 ---
 name: lore-setup
-description: Use when onboarding a new harness (Codex, Cursor, Cline, any MCP client or any tool that writes session transcripts) into lore, the full-fidelity session-memory store. Walks an agent deterministically from "lore is installed" to "my own past sessions are searchable", including the case where lore has no adapter for the harness yet.
+description: Use to onboard a harness into lore (the local, full-fidelity session-memory store) so its sessions become searchable over MCP — the "get my sessions into lore" / "make lore understand my harness" task. Trigger when someone wants to index or backfill old/existing sessions (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), register the lore MCP server in their client, teach lore to read a harness it has no adapter for yet (write and prove an adapter — checkAdapterConformance, round-trip — for whatever it stores: JSONL, SQLite, or whole-file JSON, including homegrown CLIs), or feed a live process that writes no transcript files via push. Do NOT trigger for querying memory that is already indexed, or for parsing transcripts unrelated to lore.
 ---
 
 # lore-setup
@@ -10,29 +10,51 @@ should be able to follow it cold, with no judgement calls, and end with its own
 transcripts searchable over MCP. Self-setup is the proof that lore works for a
 new harness.
 
-`lore` is a local-only SQLite + FTS5 store of agent session transcripts,
-served over MCP. Each harness writes into its own `source` namespace
-(`claude-code`, `codex`, …). There is one store; any MCP client reads all of it.
+`lore` is a local-only SQLite + FTS5 store of agent session transcripts, served
+over MCP. Each harness writes into its own `source` namespace (`claude-code`,
+`codex`, `openclaw`, `cursor`, `hermes`, …). There is one store; any MCP client
+reads all of it.
+
+## Fast path: a harness lore already auto-detects
+
+If you are onboarding **Claude Code or Codex on this machine**, one command does
+the whole job — it finds their transcripts in the standard locations, indexes the
+history, self-verifies that search returns a hit, and prints how to register the
+MCP server in your client. Install first (Step 1), then:
+
+```bash
+lore setup            # detect known harnesses, index, verify, print registration
+```
+
+`lore setup` probes the built-in locations (`~/.claude/projects`,
+`~/.codex/sessions`, `~/.codex/archived_sessions`). It does not touch any MCP
+client config — the registration block it prints is for you to apply. If it
+reports indexed sources and `Search self-check: OK`, jump straight to Step 4 to
+register. If it finds nothing (your harness isn't auto-detected, or its
+transcripts live elsewhere), fall through to the decision below.
 
 ## Decision: which ingestion path?
 
-There are exactly two ways content enters lore. Pick by answering one question:
+There are exactly two ways content enters lore. They map to two tiers of effort.
+Pick by answering one question:
 
-> **Does this harness already write transcript files to disk?**
+> **Does this harness already write transcripts to disk that an adapter can read
+> later?**
 
-- **Yes — on-disk transcripts (PULL path).** Most CLI harnesses do. Claude Code
-  writes `~/.claude/projects/**/*.jsonl`; Codex writes
-  `~/.codex/archived_sessions/*.jsonl`. Use `lore index`. If lore already has
-  an adapter for the format, you are done in one command. If not, you write a
-  small adapter (Step 3b) and prove it with the conformance harness before using
-  it.
-- **No — live process only (PUSH path).** If the harness has no on-disk
-  transcript but can run code at message time, it calls the `push` MCP tool (or
-  `pushRecords` in-process) with normalized records. No adapter needed — the push
-  path is universal. See Step 3c.
+- **Yes — on-disk transcripts (PULL path, `lore index`).** Most CLI harnesses do.
+  The format can be JSONL (Claude Code, Codex, openclaw), a SQLite database
+  (Cursor's `state.vscdb`, Hermes's `state.db`), or whole-file JSON. If lore
+  already has an adapter for the format, you are done in one command. If not, you
+  write a small **reviewed, committed code adapter** (Step 3b) and prove it with
+  the conformance harness before using it.
+- **No, or not yet — live process only (PUSH path, the `push` MCP tool).** If the
+  harness has no readable on-disk transcript, or you want memory working *right
+  now* with zero code, the live process calls `push` with normalized records. No
+  adapter, no clone, no rebuild. See Step 3c.
 
-When both exist, prefer PULL: it backfills all history, not just sessions from
-now on.
+When both are possible, prefer PULL: it backfills all history, not just sessions
+from now on. PUSH is the immediate zero-setup front door; a code adapter is the
+durable, backfilling solution.
 
 ## Step 1 — Install and build
 
@@ -48,23 +70,36 @@ Requires Node 22+. Verify: `lore help` prints usage.
 ## Step 2 — Look at the format
 
 If the harness writes files to disk, point the sampler at the directory before
-doing anything else. This is non-destructive and tells you the on-disk shape:
+doing anything else. It is non-destructive and recognizes all three container
+shapes lore supports — it never loads a whole database into memory, so it is safe
+on a multi-GB SQLite file:
 
 ```bash
 lore sample <transcript-dir>
 ```
 
-It prints the file count, a sample file path, the distinct line `type` values,
-and the distinct top-level JSON keys. Use this to decide whether an existing
-adapter fits or you need a new one.
+It reports a `kind` and the shape that matters for that kind:
 
-- If `source` is already a known adapter (run `lore index <dir> --source ?` —
-  an unknown source lists the known ones), skip to Step 4 and just index.
-- Otherwise continue to Step 3.
+- **`jsonl`** — distinct line `type` values, top-level keys, and a few raw lines.
+- **`sqlite`** — every table's name, columns, and row count (detected by the
+  `SQLite format 3` header, not the extension).
+- **`json-array`** — the element count and the union of element keys.
+- **`json-object`** — the top-level keys (a single config/whole-session object).
+
+Use this to decide whether an existing adapter fits or you need a new one. If
+`lore sample` reports a real shape, the source is readable and the PULL path is
+viable. To see which sources already have adapters, run `lore index <dir>
+--source ?` (any unknown name works) — lore rejects it and lists the registered
+sources.
 
 ## Step 3 — Make content ingestible
 
 ### 3a. Known harness, on-disk transcripts
+
+`lore setup` (the fast path above) auto-detects Claude Code and Codex only. For
+any other registered adapter (`openclaw`, `cursor`, `hermes`), or for transcripts
+in a non-standard directory, point `lore index` at the directory and name the
+source:
 
 ```bash
 lore index <transcript-dir>                      # default: claude-code adapter
@@ -73,55 +108,80 @@ lore index <transcript-dir> --subagents          # include subagent files
 lore index <transcript-dir> --redact             # opt-in credential redaction
 ```
 
-Re-running is cheap — unchanged files are skipped by the per-file watermark.
+Re-running is cheap — unchanged files are skipped by the per-file resume token
+(byte offset for JSONL, last row id for databases, content hash for whole-file
+sources).
 
-### 3b. New harness, on-disk transcripts — write an adapter
+### 3b. New harness, on-disk transcripts — write a reviewed code adapter
 
 An adapter is one small object satisfying `SourceAdapter`
-(`src/adapters/contract.ts`):
+(`src/adapters/contract.ts`). There is a **single ingestion path**: `ingest`
+turns one discovered file into normalized records plus a new resume token.
 
 ```ts
 interface SourceAdapter {
   readonly source: Source; // must be added to SOURCES in src/core/records.ts first
   discover(root: string): Promise<DiscoveredFile[]>;
-  parseLine(rawLine: string, ctx: ParseContext): ParseOutcome;
+  ingest(file: DiscoveredFile, ctx: IngestContext): Promise<IngestResult>;
 }
 ```
 
+You do not implement `ingest` from scratch unless you need to. Pick the shape
+that matches the source:
+
+- **Line-oriented (JSONL).** Express only a per-line mapping and wrap it with the
+  built-in `lineIngest` helper — it handles streaming, byte offsets, and resume
+  for you. Your `LineMapper.parseLine` turns one raw line into either
+  `{ kind: "parsed", parsed: { message, toolCalls } }` or
+  `{ kind: "skipped", reason }`. Worked examples:
+  `src/adapters/codex/parse-line.ts` (flat timeline: tool calls and outputs are
+  separate lines, paired by call id) and `src/adapters/openclaw/parse-line.ts`.
+- **Database / whole-file.** Implement `ingest` directly: open the source
+  read-only, filter to the one session named by the discovered file, and resume
+  from `ctx.priorToken` using `planReindex` from
+  `src/core/indexer/watermark.ts`. Worked examples: `src/adapters/cursor/`
+  (SQLite, honestly text-only for current sampled data — Cursor exposes
+  `toolResults` fields but sampled rows were empty, so none is fabricated) and
+  `src/adapters/hermes/` (SQLite, real tool calls paired across a flat timeline).
+
 Deterministic procedure:
 
-1. Add the new source name to the `SOURCES` enum in `src/core/records.ts`. The
-   conformance harness rejects any adapter whose `source` is not in this enum.
-2. Create `src/adapters/<name>/adapter.ts` exporting a `SourceAdapter`. Model it
-   on `src/adapters/claude-code/adapter.ts`. `discover` walks for the harness's
-   transcript files; `parseLine` turns one raw line into either
-   `{ kind: "parsed", parsed: { message, toolCalls } }` or
-   `{ kind: "skipped", reason }` for meta/unknown lines. Reuse `computeMessageId`
-   from `src/core/records.ts` so message ids stay stable
-   (`hash(sourceFileId + uuid + seq)`).
-   - `parseLine` is **stateless per line**. If a harness uses a flat timeline
-     where tool calls and their outputs are separate lines (Codex does), map each
-     line to its own message and attach the tool call to that line, pairing the
-     output back by the harness's call id. If session-level fields like project
-     or model only appear on a header line (not on each message), they will be
-     null on the messages; that is an accepted limitation, not a bug. See
-     `src/adapters/codex/parse-line.ts` for a worked example of a flat-timeline
-     adapter.
+1. Add the new source name to the built-in `SOURCES` list in `src/core/records.ts`.
+   The conformance harness rejects any committed adapter whose `source` is not in
+   this list. Push-only harnesses do not need this; they can use any non-empty
+   source namespace in their records.
+2. Create `src/adapters/<name>/` and model it on the closest worked example
+   above. Reuse `computeMessageId` from `src/core/records.ts` so message ids stay
+   stable (`hash(sourceFileId + uuid + seq)`).
+   - **Stable ids for database sources.** A message id must not shift between
+     re-indexes or it will duplicate rows. Line adapters can use the positional
+     `seq`. Database / whole-file adapters MUST pass the source's own stable
+     primary key (row id, task id) in the `seq` slot — never a positional
+     counter — because rows can be inserted, deleted, or reordered.
+   - **Be honest about missing fields.** If project, model, branch, or agent are
+     not present in the source, set them `null`. Never fabricate a tool call,
+     a role, or a field a source does not actually store.
 3. **Prove it before registering.** Call `checkAdapterConformance` from
-   `src/adapters/conformance.ts` with fixtures from the real format (use a line
-   you saw via `lore sample`). It returns a structured `ConformanceReport`;
-   `report.passed` must be `true`. The checks: declares a known source, parses a
-   representative line into a schema-valid message, skips a meta line, produces a
-   stable-yet-seq-sensitive message id, and (if you pass `sampleRoot`) discovers
-   at least one file. Do not register an adapter whose report is not green.
+   `src/adapters/conformance.ts` with fixtures from the real format (use a row or
+   line you saw via `lore sample`). It returns a structured `ConformanceReport`;
+   `report.passed` must be `true`. The checks: declares a known source, discovers
+   the sample tree, parses a representative record into a schema-valid message,
+   skips a meta record (so `skipped >= 1`), produces a source-keyed and
+   stable-yet-distinct message id, and **round-trips a search** — it persists to
+   an in-memory store and confirms `expectedText` is findable. Do not register an
+   adapter whose report is not green.
 4. Register it: add the adapter to the `makeRegistry([...])` builtin list in
    `src/adapters/registry.ts`.
 5. `npm run check` must pass (typecheck + lint + format + test). Add a colocated
-   `*.test.ts` for the adapter and one conformance test (model on
-   `src/adapters/conformance.test.ts`).
+   `*.test.ts` for the adapter plus a `conformance.test.ts` (model on an existing
+   adapter's, e.g. `src/adapters/hermes/conformance.test.ts`).
 6. Index: `lore index <dir> --source <name>`.
 
-### 3c. Live harness, no transcript files — push
+This is a **reviewed, committed** path: adapter code lives in the repo and goes
+through normal review. There is no runtime loader that auto-loads or executes
+adapter code from a folder.
+
+### 3c. Live harness, no transcript files — push (zero-setup front door)
 
 Call the `push` MCP tool (or import `pushRecords` from
 `src/core/ingest/push.js`) with a normalized batch:
@@ -134,49 +194,66 @@ push({
 });
 ```
 
-The batch is validated with Zod at the boundary; a malformed batch is rejected
-without writing. Pushes are idempotent (keyed upserts), so re-pushing a session
-does not duplicate it. The session rollup is recomputed automatically.
+`push` is **data only**. It accepts records, validates every one with Zod at the
+boundary, and rejects a malformed batch without writing. It never receives or
+executes code — there is no code path by which pushing can run adapter logic.
+Pushes are idempotent (keyed upserts), so re-pushing a session does not duplicate
+it, and the session rollup is recomputed automatically. This is the fastest way
+to get memory working: no clone, no adapter, no rebuild.
 
 ## Step 4 — Serve over MCP
+
+The server runs over stdio:
 
 ```bash
 lore serve            # MCP server over stdio
 ```
 
-Point the client at it. For Claude Code, `~/.claude/settings.json`:
+Register that command in your client (this is exactly what `lore setup` prints at
+the end). lore never edits another tool's config — every client's format differs,
+so you apply the block for your own harness:
 
-```json
-{ "mcpServers": { "lore": { "command": "lore", "args": ["serve"] } } }
-```
+- **Claude Code:** `claude mcp add lore -- lore serve`
+- **Codex** (`~/.codex/config.toml`):
+  ```toml
+  [mcp_servers.lore]
+  command = "lore"
+  args = ["serve"]
+  ```
+- **Cursor / Cline / any other MCP client** (stdio server entry):
+  ```json
+  { "mcpServers": { "lore": { "command": "lore", "args": ["serve"] } } }
+  ```
 
-For any other MCP client, add an stdio server entry with the same command/args.
+Then reload: most clients only load MCP tools at session start, so start a new
+session (some expose a reload command that reseeds in place). A running session
+cannot register its own tools mid-flight.
 
 ## Step 5 — Survive compaction (optional but recommended)
 
 Wire `lore hook` into the harness's pre-compaction / session-end lifecycle. It
-reads the hook payload on stdin, extracts the transcript path, indexes just that
-file, and always exits 0 so it can never crash the harness.
+reads the hook payload on stdin, indexes just that transcript, and always exits 0
+so it can never crash the harness.
 
 ## Step 6 — Verify (this is the proof)
 
-Confirm the new source is actually searchable:
-
-```bash
-# via CLI after indexing, or via the search_memory MCP tool with a source filter
-```
-
-Call `search_memory` with `{ "source": "<name>", "query": "<a word you know is in a session>" }`
-and confirm you get hits whose `source` is `<name>`. A green search against the
-new namespace — produced by following this skill cold — is the proof that the
-harness is onboarded.
+Confirm the new source is actually searchable. Call `search_memory` with
+`{ "source": "<name>", "query": "<a word you know is in a session>" }` and
+confirm you get hits whose `source` is `<name>`. A green search against the new
+namespace — produced by following this skill cold — is the proof that the harness
+is onboarded.
 
 ## Checklist
 
 - [ ] `lore help` works (installed + built)
-- [ ] `lore sample <dir>` ran; format understood
-- [ ] Ingestion path chosen (PULL/index or PUSH)
-- [ ] If new adapter: source added to `SOURCES`, `checkAdapterConformance` green, registered, `npm run check` passes
+- [ ] If Claude Code / Codex on this machine: `lore setup` ran, indexed, and
+      reported `Search self-check: OK`
+- [ ] `lore sample <dir>` ran; `kind` and shape understood (JSONL / SQLite / JSON)
+- [ ] Ingestion path chosen (PULL/index for on-disk, or PUSH for live/zero-setup)
+- [ ] If new adapter: source added to `SOURCES`, modeled on the matching worked
+      example, honest about missing fields, `checkAdapterConformance` green,
+      registered, colocated tests added, `npm run check` passes
+- [ ] If push: batch validated and accepted (data only, no code executed)
 - [ ] Content indexed/pushed
 - [ ] `lore serve` wired into the MCP client
 - [ ] `search_memory` returns hits for the new `source`

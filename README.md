@@ -28,9 +28,10 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 ## ✨ Why you'll want it
 
-- 🔀 **One memory, every agent.** Claude Code, Codex, and Cursor all read
-  and write the same store. A session in one agent is instantly readable by all
-  the others. What Codex figures out, Claude Code knows.
+- 🔀 **One memory, every agent.** Claude Code, Codex, openclaw, Cursor, and
+  Hermes histories all land in one store, and any MCP client reads it. A session
+  in one agent is instantly readable by all the others. What Codex figures out,
+  Claude Code knows.
 - 🧠 **It outlives the context window.** Compaction stops meaning amnesia.
   Last week's reasoning is one search away.
 - 🔍 **Search that speaks code.** `getUserById`, `foo.bar.ts`, and `trust-metadata`
@@ -103,11 +104,20 @@ lore index ~/.claude/projects --subagents  # include subagent transcripts
 lore index ~/.claude/projects --redact     # opt-in secret redaction (see Privacy)
 ```
 
-Other harnesses come in with `--source`. Codex is built in:
+Other harnesses come in with `--source`. Codex, openclaw, Cursor, and Hermes are
+all built in:
 
 ```bash
 lore index ~/.codex/sessions --source codex
+lore index ~/.openclaw/sessions --source openclaw
+lore index ~/.cursor --source cursor     # reads Cursor's SQLite state store
+lore index ~/.hermes --source hermes     # reads Hermes's SQLite state store
 ```
+
+Cursor and Hermes keep their history in a SQLite database rather than JSONL
+files; point `lore index` at the directory and the adapter reads the store
+directly. Current sampled Cursor rows expose `toolResults` fields but only empty
+arrays, so the Cursor adapter indexes text only and fabricates no tool calls.
 
 Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
@@ -200,10 +210,13 @@ For Claude Code, add to `~/.claude/settings.json`:
 ## 🧩 Bring your own harness
 
 Don't see your agent on the list? `lore sample <transcript-dir>` summarizes its
-on-disk format, and the bundled **lore-setup** skill (`skills/lore-setup/`)
-walks an agent from "installed" to "my sessions are searchable," including writing
-and proving a new adapter, or using the live `push` path when a harness keeps no
-files at all.
+on-disk format — it recognizes JSONL, SQLite databases (read via the file header,
+never by loading the DB), and whole-file JSON — so you can see an unknown
+harness's shape before writing anything. The bundled **lore-setup** skill
+(`skills/lore-setup/`) walks an agent from "installed" to "my sessions are
+searchable," including writing and proving a new adapter, or using the live
+`push` path when a harness keeps no files at all. `push` is **data only**: it
+validates every record at the boundary and never receives or executes code.
 
 ## 🔒 Privacy
 
@@ -219,8 +232,8 @@ files at all.
 ## 🧬 How it works under the hood
 
 - **One shared store, many harnesses.** Each harness writes into its own `source`
-  namespace (`claude-code`, `codex`, ...). Any MCP client can read everyone's
-  history.
+  namespace (`claude-code`, `codex`, `openclaw`, `cursor`, `hermes`). Any MCP
+  client can read everyone's history.
 - **Three IDs.** A `source_file_id` is a physical transcript file (the unit of
   ingestion and the resume watermark). A `session_id` is a logical session shared
   across a primary file and its subagent files. Each message gets a synthetic

@@ -1,8 +1,7 @@
 import { z } from "zod";
 import type { Store } from "../store/open-store.js";
 import { messageRecordSchema, sourceFileRecordSchema, toolCallRecordSchema } from "../records.js";
-import { upsertMessage, upsertSourceFile, upsertToolCall } from "../store/upsert.js";
-import { recomputeSession } from "../store/recompute-session.js";
+import { writeRecordBatch } from "../store/write-records.js";
 import { logger } from "../logger.js";
 
 /**
@@ -35,13 +34,11 @@ export interface PushResult {
 export function pushRecords(db: Store, input: unknown): PushResult {
   const batch = pushBatchSchema.parse(input);
 
-  const apply = db.transaction((b: PushBatch) => {
-    upsertSourceFile(db, b.sourceFile);
-    for (const message of b.messages) upsertMessage(db, message);
-    for (const call of b.toolCalls) upsertToolCall(db, call);
-    recomputeSession(db, b.sourceFile.sessionId);
+  writeRecordBatch(db, {
+    sourceFile: batch.sourceFile,
+    messages: batch.messages,
+    toolCalls: batch.toolCalls,
   });
-  apply(batch);
 
   logger.debug("pushed records", {
     sourceFileId: batch.sourceFile.sourceFileId,

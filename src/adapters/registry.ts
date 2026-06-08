@@ -1,6 +1,9 @@
 import type { SourceAdapter } from "./contract.js";
 import { claudeCodeAdapter } from "./claude-code/adapter.js";
 import { codexAdapter } from "./codex/adapter.js";
+import { openclawAdapter } from "./openclaw/adapter.js";
+import { cursorAdapter } from "./cursor/adapter.js";
+import { hermesAdapter } from "./hermes/adapter.js";
 
 /**
  * The adapter registry maps a source name to the adapter that ingests it. It is
@@ -24,7 +27,13 @@ export function makeRegistry(adapters: SourceAdapter[]): AdapterRegistry {
 }
 
 /** The process-wide registry of built-in adapters. */
-const builtins = makeRegistry([claudeCodeAdapter, codexAdapter]);
+const builtins = makeRegistry([
+  claudeCodeAdapter,
+  codexAdapter,
+  openclawAdapter,
+  cursorAdapter,
+  hermesAdapter,
+]);
 
 export function getAdapter(source: string): SourceAdapter | undefined {
   return builtins.get(source);

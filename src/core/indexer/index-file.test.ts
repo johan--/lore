@@ -102,6 +102,34 @@ describe("indexFile", () => {
     expect(searchMemory(db, "alamo")).toHaveLength(1);
   });
 
+  it("recovers from a malformed persisted resume token by fully re-indexing", async () => {
+    const path = await writeFixture(`${SESSION}.jsonl`, primaryLines());
+    db.prepare(
+      `INSERT INTO source_files
+         (source_file_id, source, session_id, kind, agent_file, path,
+          byte_offset, line_count, prefix_sha256, mtime, resume_token, indexed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      path,
+      "claude-code",
+      SESSION,
+      "primary",
+      null,
+      path,
+      0,
+      0,
+      null,
+      null,
+      "{not-json",
+      "2026-05-09T00:00:00.000Z",
+    );
+
+    const result = await indexFile(db, { path });
+    expect(result.mode).toBe("full");
+    expect(result.messages).toBe(2);
+    expect(searchMemory(db, "alamo")).toHaveLength(1);
+  });
+
   it("rolls subagent messages under the parent session but keeps them attributable", async () => {
     const parent = SESSION;
     const agentHash = "agent-a555e804c9bf7ebe7";

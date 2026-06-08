@@ -6,6 +6,7 @@ import { openStore, type Store } from "../store/open-store.js";
 import { backfillDirectory } from "./backfill.js";
 import { searchMemory } from "../search/search-memory.js";
 import type { SourceAdapter } from "../../adapters/contract.js";
+import { lineIngest } from "./line-ingest.js";
 import { computeMessageId } from "../records.js";
 
 let dir: string;
@@ -88,32 +89,35 @@ describe("backfillDirectory", () => {
       discover: async (root) => [
         { path: join(root, "roll.jsonl"), kind: "primary", agentFile: null, sessionId: "codex-s" },
       ],
-      parseLine: (raw, ctx) => {
-        const o = JSON.parse(raw) as { role: "user"; uuid: string; text: string };
-        return {
-          kind: "parsed",
-          parsed: {
-            message: {
-              messageId: computeMessageId(ctx.sourceFileId, o.uuid, ctx.seq),
-              sourceFileId: ctx.sourceFileId,
-              sessionId: ctx.sessionId,
-              uuid: o.uuid,
-              parentUuid: null,
-              seq: ctx.seq,
-              role: o.role,
-              timestamp: null,
-              project: null,
-              branch: null,
-              model: null,
-              agent: null,
-              skill: null,
-              text: o.text,
-              textTruncated: false,
+      ingest: lineIngest({
+        source: "codex",
+        parseLine: (raw, ctx) => {
+          const o = JSON.parse(raw) as { role: "user"; uuid: string; text: string };
+          return {
+            kind: "parsed",
+            parsed: {
+              message: {
+                messageId: computeMessageId(ctx.sourceFileId, o.uuid, ctx.seq),
+                sourceFileId: ctx.sourceFileId,
+                sessionId: ctx.sessionId,
+                uuid: o.uuid,
+                parentUuid: null,
+                seq: ctx.seq,
+                role: o.role,
+                timestamp: null,
+                project: null,
+                branch: null,
+                model: null,
+                agent: null,
+                skill: null,
+                text: o.text,
+                textTruncated: false,
+              },
+              toolCalls: [],
             },
-            toolCalls: [],
-          },
-        };
-      },
+          };
+        },
+      }),
     };
 
     const result = await backfillDirectory(db, dir, { adapter: codexAdapter });
