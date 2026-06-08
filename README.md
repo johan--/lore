@@ -122,6 +122,52 @@ arrays, so the Cursor adapter indexes text only and fabricates no tool calls.
 Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
 
+## 💻 Recall from the CLI — no server required
+
+You don't need the MCP server to use Lore. The `lore` command opens the SQLite
+store directly, so **search, read-back, navigation, and writing all work
+server-free** — anywhere you have a shell. The MCP server (below) is just one more
+reader of the same store; nothing here depends on it.
+
+The loop is always the same: **drill down, never dump.** A session can be millions
+of tokens, so you never page a whole one into context. Search broadly, take the
+real ids it hands back (you never invent one), then spend them:
+
+```bash
+lore search "fts tokenizer" --relevant     # → hits, each leading with a message + session id
+lore get <message-id> --full               # read that one message in full
+lore context <message-id>                  # 5 before / 5 after, anchor flagged
+lore session <session-id> --around <message-id>   # jump to that spot, read forward
+```
+
+Other commands round out the loop — `lore sessions` (recent conversations),
+`lore timeline` (activity by day/hour), and `lore push` (add a live session from a
+JSON batch on stdin). Add `--json` to any of them for a machine-readable envelope.
+Every search filter the MCP tools accept works here too (`--project`, `--source`,
+`--session`, `--branch`, `--agent`, `--skill`, `--tool`, `--role`, `--model`,
+`--since`, `--until`, `--limit`).
+
+**CLI ⇄ MCP parity is proven, not asserted.** Each `lore … --json` envelope is
+byte-for-byte identical to the matching MCP tool's response, verified by a parity
+test suite that runs both paths against one shared fixture store. So the CLI is a
+faithful stand-in for the server:
+
+| task | CLI | MCP tool | `--json` envelope |
+|------|-----|----------|-------------------|
+| keyword search | `lore search` | `search_memory` | `{ count, hits }` |
+| recency-blended search | `lore search --relevant` | `find_relevant` | `{ count, hits }` |
+| one message | `lore get` | `get_message` | detail obj / `{ error, message_id }` |
+| neighbors | `lore context` | `get_context` | `{ messages }` |
+| session page | `lore session` | `get_session` | `{ messages, nextCursor }` |
+| session list | `lore sessions` | `list_sessions` | `{ count, sessions }` |
+| activity | `lore timeline` | `timeline` | `{ buckets }` |
+| write | `lore push` | `push` | result / `{ error, detail }` |
+
+The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
+loop — when to search, which id to spend, and how to drill down instead of
+dumping. Pair it with **`lore-setup`** (`skills/lore-setup/`) to get history
+indexed in the first place.
+
 ## 🔌 Serve it to your client
 
 `lore serve` starts the MCP server over stdio. Point any MCP client at it.

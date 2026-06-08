@@ -1,13 +1,25 @@
 # Onboarding lore (for the agent doing the setup)
 
 You were handed a one-liner and told to set up **lore** — a local, full-fidelity
-memory of past agent sessions, served over MCP. Follow this spine top to bottom.
-It is deterministic; you supply only the one thing this doc cannot know: **which
-harness you are** (Claude Code, Codex, Cursor, Cline, …) and therefore how your
-client registers an MCP server and how it reloads.
+memory of past agent sessions. Follow this spine top to bottom.
 
-Do not skip the verify step. "I ran the commands" is not proof; a green
-`search_memory` is.
+There are two ways to use lore, and **only the first is required**:
+
+1. **The server-free `lore` CLI** (Steps 1–2) — the always-available path. Once
+   your history is indexed, `lore search` / `lore get` recall it directly from the
+   store, with **no server, no registration, and no reload.** Any harness that can
+   run a shell gets memory this way. The bundled **`lore` skill** drives this loop
+   and is auto-discovered from its description, so on skill-capable harnesses you
+   wire up nothing — recall just becomes available the moment lore is installed.
+   This is what makes lore portable: a new user runs one command and is done; they
+   never have to hand-edit a per-harness instruction file for lore to work.
+2. **The MCP server** (Steps 3–5, **optional**) — register `lore serve` only if
+   your harness prefers tool calls (`search_memory`, …) over shelling out. It reads
+   the same store and is never required; every CLI `--json` envelope is byte-for-byte
+   the matching MCP tool's response.
+
+Do not skip the verify step. "I ran the commands" is not proof; a non-empty
+`lore search` (or a green `search_memory`, if you wired up MCP) is.
 
 ## Step 1 — Install and build
 
@@ -57,11 +69,18 @@ prints the registration guidance from Step 3.
   `~/.codex/sessions` can take several minutes; progress logs are normal, and
   repeat runs should be much faster because unchanged files are skipped.
 
-## Step 3 — Register lore in YOUR client
+**After this step you already have memory.** `lore search "<a word from a past
+session>"` returns hits and `lore get <id> --full` reads one back — no server, no
+registration, no reload. If your harness supports skills, the `lore` skill is now
+discoverable too. Steps 3–5 are **only** if you additionally want the MCP tools;
+otherwise jump to Step 6.
 
-lore deliberately does **not** edit your client's config — every client's format
-differs and silently rewriting them is unsafe. You apply the block for your own
-harness:
+## Step 3 (optional) — Register lore in YOUR client for MCP tool access
+
+Do this **only if** you want MCP tool calls (`search_memory`, …) alongside the
+CLI — recall already works without it. lore deliberately does **not** edit your
+client's config — every client's format differs and silently rewriting them is
+unsafe. You apply the block for your own harness:
 
 | Harness          | How to register                                                              |
 | ---------------- | --------------------------------------------------------------------------- |
@@ -74,9 +93,10 @@ If you are a harness not listed here: you still know your own config format. Add
 stdio MCP server named `lore` invoking `lore serve`. That is the whole
 contract.
 
-## Step 4 — Reload so the new tools load
+## Step 4 (optional) — Reload so the new tools load
 
-MCP tools are almost always loaded at **session start**. A running session — the
+Skip this entirely if you're using the CLI only. MCP tools are almost always
+loaded at **session start**. A running session — the
 one you are in right now — usually cannot pick up a server it just registered.
 Pick the reload path for your client and tell the user the manual step:
 
@@ -92,44 +112,56 @@ current session unless you have actually confirmed the tools are live here.
 
 ## Step 5 — Prove it (the only acceptance test)
 
-Once reloaded, call the `search_memory` tool with a word you know appears in a past
-session of yours. A non-empty result whose `source` matches your harness is the
-proof. Report the hit to the user. If it's empty, re-check Step 2 (did indexing
-find your transcripts?) and Step 4 (did the tools actually reload?).
+Recall with a word you know appears in a past session of yours and confirm a
+non-empty result whose `source` matches your harness. Use whichever path you set up:
 
-## Step 6 — Teach your future self (update your own global config)
+- **CLI (always available):** `lore search "<word>"` — a non-empty hit list is the proof.
+- **MCP (if you did Steps 3–4):** call the `search_memory` tool with the same word.
 
-Steps 1–5 run **once**. Using lore has to be remembered **every** future
-session, so write a short block into the global instruction file your harness
-auto-loads at session start — the same file you read at the top of every session:
+Report the hit to the user. If it's empty, re-check Step 2 (did indexing find your
+transcripts?) — and, if you went the MCP route, Step 4 (did the tools actually
+reload?).
 
-- Claude Code → `~/.claude/CLAUDE.md`
-- Codex → `~/.codex/AGENTS.md`
-- Gemini → `~/.gemini/GEMINI.md`
-- any other harness → whatever file it loads at session start
+## Step 6 — Teach your future self (optional reinforcement)
 
-Append this block (trim to taste — it costs tokens every session, so keep it
-tight):
+Steps 1–5 run **once**, but using lore has to be remembered **every** future
+session. There are two mechanisms, and the first carries the load:
+
+- **The `lore` skill does this for you, with no editing.** Because the skill is
+  auto-discovered from its description (which fires on "remember", "recall", "last
+  time", "search my history", …), a skill-capable harness surfaces lore whenever
+  memory is relevant — you don't have to wire anything into a config file. This is
+  the portable mechanism: it ships with lore and works for any user who installs
+  it. **lore does not depend on the block below.**
+- **A short pointer in your own global instruction file is optional belt-and-
+  suspenders** — useful if your harness doesn't support skills, or to bias your
+  own setup toward recall. Write it only into the file *your* harness auto-loads at
+  session start (Claude Code → `~/.claude/CLAUDE.md`, Codex → `~/.codex/AGENTS.md`,
+  Gemini → `~/.gemini/GEMINI.md`, …). Never edit another harness's config.
+
+If you do write the pointer, append this block (trim to taste — it costs tokens
+every session):
 
 > **lore — long-term session memory.** A local, searchable store of past agent
-> sessions at `~/.lore/lore.db`, served over MCP. When you need context you
-> don't have — a past decision, how something was built, why an approach was
-> dropped — query it with the `search_memory` / `find_relevant` tools (filters:
-> `project`, `branch`, `source`, `agent`, `tool`, `since`, `until`) **before**
-> guessing or asking. Ingestion differs per harness (each writes its own
-> transcript format, read via its own adapter into its own `source` namespace:
-> `claude-code`, `codex`, …) but querying is identical. Resolving loose
-> references: an unqualified "the last session" / "pop back in" means **your own**
-> harness's most recent session (`source` = the harness you are, scoped to the
-> current repo if you're in one) — only cross to another harness when the user
-> names one ("the last codex session"). A topic reference ("the session where we
-> fixed X") searches **all** sources by relevance. Caveat: "last" means last
-> *indexed* — the session you're in now isn't in lore until a hook or
+> sessions at `~/.lore/lore.db`, shared by every harness on this machine. When you
+> need context you don't have — a past decision, how something was built, why an
+> approach was dropped — recall from lore **before** guessing or asking. **You
+> don't need the MCP server:** the server-free `lore` CLI reads the store directly
+> (`lore search <q>` → real ids → `lore get <id> --full` / `lore context <id>` /
+> `lore session <id> --around <id>`; always drill down, never dump a whole
+> session). The `lore` skill drives this loop. If the MCP tools are loaded,
+> `search_memory` / `find_relevant` are the equivalent calls. Both honor the same
+> filters: `project`, `branch`, `source`, `agent`, `tool`, `since`, `until`.
+> Resolving loose references: an unqualified "the last session" / "pop back in"
+> means **your own** harness's most recent session (`source` = the harness you are,
+> scoped to the current repo if you're in one) — only cross to another harness when
+> the user names one ("the last codex session"). A topic reference ("the session
+> where we fixed X") searches **all** sources by relevance. Caveat: "last" means
+> last *indexed* — the session you're in now isn't in lore until a hook or
 > `lore setup` indexes it.
 
-Optionally also drop that same block at `~/.agents/lore.md` as a shared,
-harness-neutral reference every agent on the machine can point at. Do not edit
-another harness's config — only your own.
+You may also drop that block at `~/.agents/lore.md` as a shared, harness-neutral
+reference every agent on the machine can point at.
 
 ## Optional — Survive compaction
 
