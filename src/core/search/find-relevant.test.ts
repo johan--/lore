@@ -57,6 +57,33 @@ describe("findRelevant", () => {
     expect(hits.map((h) => h.messageId)).toEqual(["recent", "old"]);
   });
 
+  it("ranks a clearly stronger older match above a weak fresh one", () => {
+    const db = freshStore();
+    upsertMessage(
+      db,
+      msg({
+        messageId: "old-strong",
+        uuid: "u1",
+        seq: 0,
+        timestamp: "2026-04-10T00:00:00.000Z",
+        text: "alamo battle",
+      }),
+    );
+    upsertMessage(
+      db,
+      msg({
+        messageId: "fresh-weak",
+        uuid: "u2",
+        seq: 1,
+        timestamp: NOW,
+        text: "alamo " + "filler ".repeat(40),
+      }),
+    );
+
+    const hits = findRelevant(db, "alamo", { now: NOW });
+    expect(hits[0]?.messageId).toBe("old-strong");
+  });
+
   it("still respects keyword relevance when recency is equal", () => {
     const db = freshStore();
     upsertMessage(

@@ -1,20 +1,20 @@
 import type { Store } from "../store/open-store.js";
 import { searchMemory, type SearchHit, type SearchOptions } from "./search-memory.js";
+import { scoreRelevance } from "./score-relevance.js";
 
 export interface FindRelevantOptions extends SearchOptions {
-  /** Reference time for the recency blend (ISO-8601). Defaults to now. */
+  /** Reference time for the recency prior (ISO-8601). Defaults to now. */
   now?: string;
 }
 
 const DEFAULT_LIMIT = 20;
 
 /**
- * Recency-blended relevance ranking. Where `searchMemory` ranks by pure bm25,
- * this multiplies each hit's keyword score by a recency factor `1/(1+ageHours)`,
- * so a fresh memory outranks an equally-relevant stale one while a much stronger
- * keyword match can still beat a merely newer one. A candidate pool larger than
- * the requested limit is pulled by bm25 first, so a recent-but-lower-bm25 memory
- * can still surface into the final ranking.
+ * Relevance-led ranking. Where `searchMemory` ranks by pure bm25, this re-ranks a
+ * larger bm25 candidate pool with `scoreRelevance`: relevance leads, recency is a
+ * bounded prior on a ~week scale, so a clearly stronger older match beats a weak
+ * fresh one and recency only settles near-ties. A memory whose timestamp is missing
+ * or unparseable simply earns no freshness bonus rather than being crushed.
  */
 export function findRelevant(
   db: Store,
@@ -27,18 +27,18 @@ export function findRelevant(
 
   const candidates = searchMemory(db, query, { ...opts, limit: candidatePool });
 
-  const blended = candidates
-    .map((hit) => ({ ...hit, score: hit.score * recencyFactor(hit.timestamp, now) }))
+  return candidates
+    .map((hit) => ({
+      ...hit,
+      score: scoreRelevance({ bm25: hit.score, ageHours: ageHoursOf(hit.timestamp, now) }),
+    }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
-
-  return blended;
 }
 
-function recencyFactor(timestamp: string | null, now: number): number {
-  if (typeof timestamp !== "string") return Number.EPSILON;
+function ageHoursOf(timestamp: string | null, now: number): number {
+  if (typeof timestamp !== "string") return Infinity;
   const parsed = Date.parse(timestamp);
-  if (Number.isNaN(parsed)) return Number.EPSILON;
-  const ageHours = Math.max(0, now - parsed) / 3_600_000;
-  return 1 / (1 + ageHours);
+  if (Number.isNaN(parsed)) return Infinity;
+  return Math.max(0, now - parsed) / 3_600_000;
 }
