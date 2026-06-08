@@ -31,6 +31,49 @@ describe("schema migrations", () => {
     db.close();
   });
 
+  it("re-nulls content_hash for injected blocks that were hashed under v3 logic", () => {
+    const db = new Database(":memory:");
+    initSchema(db);
+    // Simulate a store left at v3: column present, but hashed with the older
+    // strip list that didn't know cross-harness injected blocks.
+    db.exec("ALTER TABLE messages ADD COLUMN content_hash TEXT");
+    db.pragma("user_version = 3");
+    const insert = db.prepare(
+      `INSERT INTO messages (message_id, source_file_id, session_id, uuid, parent_uuid,
+         seq, role, timestamp, text, text_truncated, content_hash)
+       VALUES (?, 'sf', 'sess', ?, NULL, ?, ?, NULL, ?, 0, ?)`,
+    );
+    insert.run(
+      "m-inj",
+      "u1",
+      0,
+      "user",
+      "<turn_aborted>\nThe user interrupted the previous turn on purpose. Verify state before retrying.\n</turn_aborted>",
+      "stale-hash-from-v3",
+    );
+    insert.run(
+      "m-real",
+      "u2",
+      1,
+      "user",
+      "Always run npm run check before committing on this repo.",
+      "stale-hash-real",
+    );
+
+    runMigrations(db);
+
+    const inj = db
+      .prepare("SELECT content_hash AS h FROM messages WHERE message_id = ?")
+      .get("m-inj") as { h: string | null };
+    const real = db
+      .prepare("SELECT content_hash AS h FROM messages WHERE message_id = ?")
+      .get("m-real") as { h: string | null };
+    expect(inj.h).toBeNull();
+    expect(real.h).toBeTruthy();
+    expect(real.h).not.toBe("stale-hash-real"); // recomputed, not left stale
+    db.close();
+  });
+
   it("backfills content_hash for rows that predate the v3 migration", () => {
     const db = new Database(":memory:");
     initSchema(db); // v1 store: messages table has no content_hash column yet

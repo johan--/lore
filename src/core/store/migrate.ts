@@ -5,7 +5,7 @@ import { contentHash } from "./content-hash.js";
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * Ordered migration steps. Each step's `to` is the schema version it produces,
@@ -51,6 +51,17 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
       `);
       backfillContentHash(db);
     },
+  },
+  {
+    // Recompute content_hash with the widened injected-block strip list. Stores
+    // stamped at v3 hashed cross-harness injected turns (codex `turn_aborted`,
+    // `personality_spec`, `skill`, `collaboration_mode`) as if authored, so they
+    // recurred verbatim across thousands of sessions and polluted importance.
+    // Re-running the paged backfill re-nulls those rows; the messages_au trigger
+    // is already scoped to `OF text` (v3), so this touches content_hash only and
+    // leaves FTS untouched.
+    to: 4,
+    up: (db) => backfillContentHash(db),
   },
 ];
 

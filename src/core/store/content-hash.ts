@@ -14,7 +14,12 @@ import { createHash } from "node:crypto";
  * boilerplate and trivially short messages are excluded (null hash).
  */
 
-/** Harness control blocks whose entire span is injected, not authored. */
+/**
+ * Harness control blocks whose entire span is injected, not authored. The first
+ * group is Claude Code's; the second is other harnesses that share this store
+ * (codex and friends), whose standalone injected turns otherwise recur verbatim
+ * across thousands of sessions and drown out genuine memories.
+ */
 const INJECTED_BLOCKS = [
   "system-reminder",
   "command-message",
@@ -23,6 +28,10 @@ const INJECTED_BLOCKS = [
   "local-command-stdout",
   "local-command-stderr",
   "user-prompt-submit-hook",
+  "turn_aborted",
+  "personality_spec",
+  "collaboration_mode",
+  "skill",
 ];
 
 /** Minimum organic length for a message to be worth counting as recurring. */

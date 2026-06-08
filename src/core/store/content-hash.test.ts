@@ -31,6 +31,26 @@ describe("isRecurrenceEligible", () => {
     ).toBe(false);
   });
 
+  it("rejects standalone cross-harness injected blocks (codex/other agents)", () => {
+    // These are harness-injected blocks that recur verbatim across thousands of
+    // sessions in the shared store; counting them drowns out genuine memories.
+    expect(
+      isRecurrenceEligible(
+        "<turn_aborted>\nThe user interrupted the previous turn on purpose. Verify current state before retrying.\n</turn_aborted>",
+      ),
+    ).toBe(false);
+    expect(
+      isRecurrenceEligible(
+        "<personality_spec> The user has requested a new communication style. Future messages should be direct and factual. </personality_spec>",
+      ),
+    ).toBe(false);
+    expect(
+      isRecurrenceEligible(
+        "<skill>\n<name>knowledge-wiki</name>\n<path>/x/SKILL.md</path>\ndescription: second brain wiki\n</skill>",
+      ),
+    ).toBe(false);
+  });
+
   it("rejects a short acknowledgement", () => {
     expect(isRecurrenceEligible("ok thanks")).toBe(false);
   });
