@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
-import { openStore } from "../core/store/open-store.js";
+import { openStore, openStoreReadonly } from "../core/store/open-store.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { backfillDirectory } from "../core/indexer/backfill.js";
 import { indexFromHookPayload } from "../hooks/index-current.js";
@@ -10,6 +11,11 @@ import { getAdapter, adapterSources } from "../adapters/registry.js";
 import { sampleFormat, renderSample } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
+import { searchMemory } from "../core/search/search-memory.js";
+import { listSessions } from "../core/retrieval/list-sessions.js";
+import { elide } from "../core/budget.js";
+import { parseSearchArgs, parseSessionsArgs } from "./parse-search-args.js";
+import { renderSearchResults, renderSessions } from "./render-results.js";
 
 const USAGE = `lore — full-fidelity agent session memory
 
@@ -20,6 +26,13 @@ Usage:
   lore index <dir> [--source <name>] [--subagents] [--redact]
                                      Backfill transcripts under <dir> into the store
                                      (--source picks an adapter; default claude-code)
+  lore search <query> [filters] [--json]
+                                     Keyword search the store WITHOUT the MCP server.
+                                     Filters: --project --branch --session --source --agent
+                                     --skill --tool --role --model --since --until --limit
+  lore sessions [filters] [--json]
+                                     List session rollups (newest first). Filters:
+                                     --project --source --since --until --limit
   lore sample <dir>                Summarize a transcript dir's on-disk format
   lore hook [--redact]             Index the current session from a hook payload on stdin
   lore serve                       Start the MCP server over stdio
@@ -69,6 +82,43 @@ export async function runCli(argv: string[]): Promise<number> {
           `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
       );
       db.close();
+      return 0;
+    }
+    case "search": {
+      const { query, opts, json } = parseSearchArgs(rest);
+      if (!query) {
+        process.stderr.write("error: `lore search` requires a <query>\n\n" + USAGE);
+        return 1;
+      }
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        process.stderr.write(
+          `error: no lore store at ${dbPath}. Run \`lore setup\` or \`lore index <dir>\` first.\n`,
+        );
+        return 1;
+      }
+      const db = openStoreReadonly(dbPath);
+      const hits = searchMemory(db, query, opts).map((hit) => ({
+        ...hit,
+        text: elide(hit.text, hit.messageId),
+      }));
+      db.close();
+      process.stdout.write(renderSearchResults(hits, json));
+      return 0;
+    }
+    case "sessions": {
+      const { opts, json } = parseSessionsArgs(rest);
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        process.stderr.write(
+          `error: no lore store at ${dbPath}. Run \`lore setup\` or \`lore index <dir>\` first.\n`,
+        );
+        return 1;
+      }
+      const db = openStoreReadonly(dbPath);
+      const sessions = listSessions(db, opts);
+      db.close();
+      process.stdout.write(renderSessions(sessions, json));
       return 0;
     }
     case "setup": {

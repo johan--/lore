@@ -61,6 +61,65 @@ describe("lore CLI", () => {
     expect(code).toBe(1);
   });
 
+  it("`search <query>` finds indexed content without the MCP server", async () => {
+    const db = openStore(dbPath);
+    db.prepare(
+      `INSERT INTO messages (message_id, source_file_id, session_id, uuid, seq, role, timestamp, project, branch, text, text_truncated)
+       VALUES ('m1', 'sf-1', 'sess-search', 'u1', 0, 'user', '2026-05-10T00:00:00.000Z', '/repo', 'main', 'cli alamo keyword', 0)`,
+    ).run();
+    db.close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["search", "alamo", "--json"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(writes.join(""));
+    expect(parsed.count).toBe(1);
+    expect(parsed.hits[0].messageId).toBe("m1");
+  });
+
+  it("`search` returns non-zero when no query is given", async () => {
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["search"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
+
+  it("`search` returns non-zero when the store does not exist", async () => {
+    process.env.LORE_DB = join(dir, "absent.db");
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["search", "alamo"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
+
+  it("`sessions` lists session rollups from the store", async () => {
+    const db = openStore(dbPath);
+    db.prepare(
+      `INSERT INTO messages (message_id, source_file_id, session_id, uuid, seq, role, timestamp, project, branch, text, text_truncated)
+       VALUES ('m1', 'sf-1', 'sess-roll', 'u1', 0, 'user', '2026-05-10T00:00:00.000Z', '/repo', 'main', 'hello', 0)`,
+    ).run();
+    db.close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sessions", "--json"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(writes.join(""));
+    expect(parsed.count).toBe(1);
+    expect(parsed.sessions[0].sessionId).toBe("sess-roll");
+  });
+
   it("`sample <dir>` prints a format summary an onboarding agent can act on", async () => {
     const lines = [
       JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "hi" } }),

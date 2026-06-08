@@ -20,6 +20,8 @@ export interface SearchHit {
 export interface SearchOptions {
   project?: string;
   branch?: string;
+  /** Logical session id; scopes results to one conversation. */
+  session?: string;
   /** Harness namespace (e.g. "claude-code", "codex"); a file-level attribute. */
   source?: string;
   agent?: string;
@@ -68,6 +70,7 @@ export function searchMemory(db: Store, query: string, opts: SearchOptions = {})
   const eqFilters: [keyof SearchOptions, string][] = [
     ["project", "m.project"],
     ["branch", "m.branch"],
+    ["session", "m.session_id"],
     ["agent", "m.agent"],
     ["skill", "m.skill"],
     ["role", "m.role"],

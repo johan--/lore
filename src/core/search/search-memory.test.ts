@@ -165,6 +165,33 @@ describe("searchMemory — dimension filters", () => {
     expect(searchMemory(db, "alamo", { project: "/a" }).map((h) => h.messageId)).toEqual(["m1"]);
   });
 
+  it("narrows by session", () => {
+    const db = freshStore();
+    upsertMessage(
+      db,
+      msg({ messageId: "m1", uuid: "u1", seq: 0, text: "alamo a", sessionId: "sess-1" }),
+    );
+    upsertMessage(
+      db,
+      msg({
+        messageId: "m2",
+        uuid: "u2",
+        seq: 0,
+        text: "alamo b",
+        sessionId: "sess-2",
+        sourceFileId: "sf-2",
+      }),
+    );
+    expect(searchMemory(db, "alamo", { session: "sess-2" }).map((h) => h.messageId)).toEqual([
+      "m2",
+    ]);
+    expect(
+      searchMemory(db, "alamo")
+        .map((h) => h.messageId)
+        .sort(),
+    ).toEqual(["m1", "m2"]);
+  });
+
   it("narrows by branch", () => {
     const db = freshStore();
     upsertMessage(

@@ -18,3 +18,16 @@ export function openStore(path: string): Store {
   runMigrations(db);
   return db;
 }
+
+/**
+ * Open an existing store read-only for query-only callers (the CLI, any
+ * shell-capable agent) that must never migrate or mutate. Unlike `openStore`,
+ * this skips `initSchema`/`runMigrations` entirely — those are write paths — and
+ * requires the file to already exist, so a typo'd path fails loudly instead of
+ * silently creating an empty database.
+ */
+export function openStoreReadonly(path: string): Store {
+  const db = new Database(path, { readonly: true, fileMustExist: true });
+  db.pragma("busy_timeout = 5000");
+  return db;
+}
