@@ -7,7 +7,7 @@ import { z } from "zod";
  * Zod-validating them at the boundary, so the core never sees source quirks.
  */
 
-export const SOURCES = ["claude-code", "codex", "openclaw", "cursor"] as const;
+export const SOURCES = ["claude-code", "codex", "openclaw", "cursor", "hermes"] as const;
 export const sourceSchema = z.enum(SOURCES);
 export type Source = z.infer<typeof sourceSchema>;
 
