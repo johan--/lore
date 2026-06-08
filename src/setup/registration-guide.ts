@@ -21,7 +21,7 @@ export function renderRegistrationGuide(): string {
     '  { "mcpServers": { "lore": { "command": "lore", "args": ["serve"] } } }',
     "",
     "Reload so the client picks up the new tools:",
-    "  - Most clients only load MCP tools at session start — start a NEW session.",
+    "  - Most clients only load MCP tools at session start - start a NEW session.",
     "  - Some expose a reload command (e.g. /reload-plugins) that reseeds in place.",
     "  - Tell the user which step their client needs; a running session cannot",
     "    register its own tools mid-flight.",

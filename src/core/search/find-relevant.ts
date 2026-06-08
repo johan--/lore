@@ -31,11 +31,16 @@ export function findRelevant(
   const candidatePool = Math.max(limit * 5, 100);
 
   const candidates = searchMemory(db, query, { ...opts, limit: candidatePool });
-  const recurrence = recurrenceBySession(db, candidates);
+  // Hash each candidate once. searchMemory returns the full stored `text` (the
+  // same text the indexed content_hash was computed from), so this recomputation
+  // is authoritative; reuse it for both the recurrence query and the score below
+  // rather than hashing every candidate twice.
+  const hashes = candidates.map((hit) => contentHash(hit.text));
+  const recurrence = recurrenceBySession(db, hashes);
 
   return candidates
-    .map((hit) => {
-      const hash = contentHash(hit.text);
+    .map((hit, i) => {
+      const hash = hashes[i];
       const sessions = hash ? (recurrence.get(hash) ?? 1) : 1;
       return {
         ...hit,
@@ -51,18 +56,26 @@ export function findRelevant(
 }
 
 /**
- * For the candidate hits, count how many distinct sessions each one's canonical
- * content recurs across, in a single grouped query over the indexed content_hash.
- * System-role messages are excluded from the tally: in the shared multi-harness
- * store they are tool/harness plumbing (command-failure notices, spawn/permission
- * banners, tool-output echoes) that recur verbatim across hundreds of sessions and
- * would otherwise dominate importance. They remain fully searchable; they just
- * don't earn a recurrence boost.
+ * For the candidate hits (passed as their precomputed content hashes), count how
+ * many distinct sessions each canonical content recurs across, in a single grouped
+ * query over the indexed content_hash. System-role messages are excluded from the
+ * tally: in the shared multi-harness store they are tool/harness plumbing
+ * (command-failure notices, spawn/permission banners, tool-output echoes) that
+ * recur verbatim across hundreds of sessions and would otherwise dominate
+ * importance. They remain fully searchable; they just don't earn a recurrence
+ * boost.
+ *
+ * Note on session forking: a resumable harness can fork one conversation into
+ * several session_ids re-emitting identical authored content, which inflates
+ * `COUNT(DISTINCT session_id)`. This is accepted, not corrected: there is no
+ * reliable fork key across adapters (codex blanks uuids; forked copies carry
+ * distinct timestamps), and the damage is bounded — `importanceBoost` is
+ * log-saturated and hard-capped, so a forked lineage and a genuinely recurring
+ * one land at nearly the same lift.
  */
-function recurrenceBySession(db: Store, candidates: SearchHit[]): Map<string, number> {
+function recurrenceBySession(db: Store, candidateHashes: (string | null)[]): Map<string, number> {
   const hashes = new Set<string>();
-  for (const hit of candidates) {
-    const hash = contentHash(hit.text);
+  for (const hash of candidateHashes) {
     if (hash) hashes.add(hash);
   }
   const counts = new Map<string, number>();

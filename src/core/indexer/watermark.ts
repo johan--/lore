@@ -87,6 +87,9 @@ export function planByteReindex(
     return { mode: "full" };
   }
 
+  // Same size as the watermark: skip only if untouched. A newer mtime at the same
+  // size can't be ruled out as an equal-length in-place rewrite past the prefix-hash
+  // window, so re-index in full (idempotent) rather than trust a stale tail.
   if (stats.size === prior.byteOffset) {
     return stats.mtime === prior.mtime ? { mode: "skip" } : { mode: "full" };
   }

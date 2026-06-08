@@ -24,8 +24,6 @@ forever.
 
 https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
-*Inspired by [RLM](https://arxiv.org/abs/2512.24601)*
-
 ## ✨ Why you'll want it
 
 - 🔀 **One memory, every agent.** Claude Code, Codex, openclaw, Cursor, and

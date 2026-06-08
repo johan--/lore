@@ -79,7 +79,7 @@ export function lineIngest(mapper: LineMapper) {
     }
 
     const fileMetadata = mapper.getFileMetadata
-      ? mapper.getFileMetadata(await readNonEmptyLines(file.path), ctx.sourceFileId)
+      ? mapper.getFileMetadata(await readNonEmptyLines(file.path))
       : undefined;
 
     const messages: MessageRecord[] = [];

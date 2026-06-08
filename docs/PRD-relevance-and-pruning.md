@@ -1,6 +1,6 @@
 # PRD — `lore`: relevance ranking & memory hygiene
 
-> Status: ready-for-grill · Created 2026-06-07 · Repo: `~/lore` · Branch: TBD off `integration/adapters-substrate`
+> Status: ready-for-grill · Created 2026-06-07 · Repo: `~/lore` · Branch: `integration/adapters-substrate`
 > Companion: ADR `docs/adr/0001-derived-relevance-ranking.md` · Glossary: `CONTEXT.md`
 
 ## Problem Statement
@@ -81,7 +81,7 @@ reserve behavioral logging for the one job only it can do — pruning. Definitio
       `search_memory` as the pure-lexical escape hatch; AGENT-ONBOARD usage blurb does the same.
       CONTEXT.md glossary + ADR-0001 already encode the mandate. Setup-verify steps stay on
       `search_memory` (keyword-existence proof, the right tool there).
-- [x] `npm run check` passes (220 tests).
+- [x] `npm run check` passes (full suite green).
 
 > **Live-store step (not done — needs the user):** the "on the *live* store" check and the schema-v3
 > backfill of `~/.lore/lore.db` (~372k rows) run automatically the next time a v3 build opens that

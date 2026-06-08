@@ -35,7 +35,9 @@ export function createLoreServer(db: Store): McpServer {
     "search_memory",
     {
       description:
-        "Keyword search across all indexed agent session transcripts, ranked by relevance (bm25). " +
+        "Pure-lexical keyword search across all indexed agent session transcripts, ranked by bm25 " +
+        "alone (no recency or importance) - the escape hatch for the best textual match regardless " +
+        "of age. For everyday recall prefer find_relevant. " +
         "Returns matching messages with full provenance (message_id, session_id, timestamp, project, branch, model). " +
         "Long text is elided; fetch the full message with get_message(full=true).",
       inputSchema: {
@@ -190,9 +192,11 @@ export function createLoreServer(db: Store): McpServer {
     "find_relevant",
     {
       description:
-        "Like search_memory, but ranked by relevance blended with recency (a fresh memory outranks " +
-        "an equally-relevant stale one). Use when 'what's most useful now' matters more than pure " +
-        "keyword strength. Supports the same dimension filters. Text is elided.",
+        "The default memory search. Ranks by relevance (bm25) first, with recency and cross-session " +
+        "importance as bounded priors that only settle near-ties - a clearly stronger older match " +
+        "still beats a weak fresh one. Use this unless you specifically want pure keyword strength " +
+        "(then use search_memory). Same dimension filters and full provenance. Text is elided; " +
+        "fetch the full message with get_message(full=true).",
       inputSchema: {
         query: z.string().describe("Keyword or phrase to search for."),
         project: z.string().optional().describe("Filter to a project path (cwd)."),
