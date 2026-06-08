@@ -7,7 +7,7 @@ import { indexFromHookPayload } from "../hooks/index-current.js";
 import { startStdioServer } from "../mcp/stdio.js";
 import { logger } from "../core/logger.js";
 import { getAdapter, adapterSources } from "../adapters/registry.js";
-import { sampleFormat } from "../adapters/sample-format.js";
+import { sampleFormat, renderSample } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
 
@@ -105,13 +105,7 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       const sample = await sampleFormat(dir);
-      process.stdout.write(
-        `Format sample of ${sample.root}\n` +
-          `  files:        ${sample.fileCount}\n` +
-          `  sampleFile:   ${sample.sampleFile ?? "(none)"}\n` +
-          `  line types:   ${sample.lineTypes.join(", ") || "(none)"}\n` +
-          `  top-level keys: ${sample.topLevelKeys.join(", ") || "(none)"}\n`,
-      );
+      process.stdout.write(renderSample(sample));
       return 0;
     }
     case "hook": {
