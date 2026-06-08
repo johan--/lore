@@ -28,7 +28,7 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 ## ✨ Why you'll want it
 
-- 🔀 **One memory, every agent.** Claude Code, Codex, Cursor, and Cline all read
+- 🔀 **One memory, every agent.** Claude Code, Codex, and Cursor all read
   and write the same store. A session in one agent is instantly readable by all
   the others. What Codex figures out, Claude Code knows.
 - 🧠 **It outlives the context window.** Compaction stops meaning amnesia.
