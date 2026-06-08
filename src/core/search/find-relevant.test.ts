@@ -105,6 +105,41 @@ describe("findRelevant", () => {
     expect(hits[0]?.messageId).toBe("strong");
   });
 
+  it("lifts a memory that recurs across sessions above an equal-relevance one-off", () => {
+    const db = freshStore();
+    // One-off: substantive, but seen only in its own session. Inserted first so
+    // that without an importance signal it would sort first on the bm25 tie.
+    upsertMessage(
+      db,
+      msg({
+        messageId: "oneoff",
+        uuid: "u0",
+        seq: 0,
+        sessionId: "sess-1",
+        timestamp: NOW,
+        text: "alamo oneoff-note padding padding padding padding",
+      }),
+    );
+    // Recurring: identical organic content authored across three distinct sessions.
+    const recurText = "alamo recur-note padding padding padding padding";
+    for (let i = 1; i <= 3; i++) {
+      upsertMessage(
+        db,
+        msg({
+          messageId: `recur-${i}`,
+          uuid: `r${i}`,
+          seq: i,
+          sessionId: `sess-${i}`,
+          timestamp: NOW,
+          text: recurText,
+        }),
+      );
+    }
+
+    const hits = findRelevant(db, "alamo", { now: NOW });
+    expect(hits[0]?.text).toContain("recur-note");
+  });
+
   it("carries a blended score and respects the limit", () => {
     const db = freshStore();
     for (let i = 0; i < 5; i++) {
