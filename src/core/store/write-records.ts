@@ -3,6 +3,7 @@ import type { MessageRecord, SourceFileRecord, ToolCallRecord } from "../records
 import { deleteFileRows, upsertMessage, upsertSourceFile, upsertToolCall } from "./upsert.js";
 import { recomputeSession } from "./recompute-session.js";
 import { redactSecrets } from "../redact.js";
+import { loadTombstoneSets } from "./tombstones.js";
 
 /**
  * The one place a normalized batch becomes rows. Both ingestion paths funnel
@@ -84,8 +85,31 @@ export function writeRecordBatch(
 ): WriteResult {
   const mode = opts.mode ?? "append";
   const shouldRedact = opts.redact ?? true;
-  const messages = shouldRedact ? batch.messages.map(redactMessage) : batch.messages;
-  const toolCalls = shouldRedact ? batch.toolCalls.map(redactToolCall) : batch.toolCalls;
+
+  // Redaction pass — runs before the tombstone guard so we never store
+  // credentials even for records that are subsequently dropped.
+  let messages = shouldRedact ? batch.messages.map(redactMessage) : batch.messages;
+  let toolCalls = shouldRedact ? batch.toolCalls.map(redactToolCall) : batch.toolCalls;
+
+  // Tombstone guard — drop any row whose session or project is barred. Load
+  // the sets once per batch (one table scan), then O(1) per row. Independent
+  // of redaction: both operate on the same batch without interfering.
+  const tombstones = loadTombstoneSets(db);
+  const hasTombstones = tombstones.sessions.size > 0 || tombstones.projects.size > 0;
+  if (hasTombstones) {
+    messages = messages.filter(
+      (m) =>
+        !tombstones.sessions.has(m.sessionId) &&
+        (m.project === null || !tombstones.projects.has(m.project)),
+    );
+    // Tool calls carry session_id and message_id but NOT project, so we filter
+    // by surviving message ids (O(n) build, then O(1) per call) — not by
+    // session_id alone, which would incorrectly drop calls whose messages were
+    // kept because their session isn't tombstoned.
+    const survivingMessageIds = new Set(messages.map((m) => m.messageId));
+    toolCalls = toolCalls.filter((tc) => survivingMessageIds.has(tc.messageId));
+  }
+
   assertBatchMembership(batch, messages, toolCalls);
 
   const apply = db.transaction(() => {

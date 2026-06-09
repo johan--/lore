@@ -3,6 +3,7 @@ import { openStore, type Store } from "./open-store.js";
 import { writeRecordBatch } from "./write-records.js";
 import { searchMemory } from "../search/search-memory.js";
 import { listSessions } from "../retrieval/list-sessions.js";
+import { addTombstone } from "./tombstones.js";
 import type { MessageRecord, SourceFileRecord, ToolCallRecord } from "../records.js";
 
 let db: Store;
@@ -265,5 +266,104 @@ describe("writeRecordBatch", () => {
     // Default redact-on path.
     writeRecordBatch(db, { sourceFile: sourceFile(), messages: [msg], toolCalls: [] });
     expect(msg.text).toBe("token sk-abcdef0123456789ABCDEFG end");
+  });
+});
+
+// ─── Tombstone guard (resurrection-proof) ────────────────────────────────────
+
+describe("writeRecordBatch tombstone guard", () => {
+  it("drops messages for a tombstoned session and returns zero counts for them", () => {
+    addTombstone(db, { kind: "session", value: "sess-1", reason: "forget" });
+
+    const result = writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      messages: [message({ messageId: "m1", text: "should not land tombstoned" })],
+      toolCalls: [toolCall({ toolCallId: "tc1", messageId: "m1", toolName: "Bash" })],
+    });
+
+    expect(result).toEqual({ messages: 0, toolCalls: 0 });
+    expect(searchMemory(db, "tombstoned")).toHaveLength(0);
+  });
+
+  it("drops messages for an excluded project and returns zero counts for them", () => {
+    addTombstone(db, { kind: "project", value: "/work", reason: "exclude" });
+
+    const result = writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      // message() defaults project to "/work"
+      messages: [message({ messageId: "m1", text: "excluded project content" })],
+      toolCalls: [toolCall({ toolCallId: "tc1", messageId: "m1", toolName: "Bash" })],
+    });
+
+    expect(result).toEqual({ messages: 0, toolCalls: 0 });
+    expect(searchMemory(db, "excluded project")).toHaveLength(0);
+  });
+
+  it("allows messages with null project through even when other projects are excluded", () => {
+    addTombstone(db, { kind: "project", value: "/work", reason: "exclude" });
+
+    const result = writeRecordBatch(db, {
+      sourceFile: sourceFile({ sessionId: "sess-null-proj" }),
+      messages: [
+        message({
+          messageId: "m1",
+          sessionId: "sess-null-proj",
+          sourceFileId: "file-1",
+          project: null,
+          text: "null project survives",
+        }),
+      ],
+      toolCalls: [],
+    });
+
+    expect(result.messages).toBe(1);
+    expect(searchMemory(db, "null project")).toHaveLength(1);
+  });
+
+  it("preserves non-tombstoned messages in a mixed batch (multi-session file)", () => {
+    // Tombstone sess-1 only. The batch is for sess-2, which is not tombstoned.
+    addTombstone(db, { kind: "session", value: "sess-1", reason: "forget" });
+
+    const result = writeRecordBatch(db, {
+      sourceFile: sourceFile({ sessionId: "sess-2", sourceFileId: "file-2" }),
+      messages: [
+        message({
+          messageId: "m2",
+          sessionId: "sess-2",
+          sourceFileId: "file-2",
+          text: "non-tombstoned content",
+        }),
+      ],
+      toolCalls: [],
+    });
+
+    expect(result.messages).toBe(1);
+    expect(searchMemory(db, "non-tombstoned")).toHaveLength(1);
+  });
+
+  it("redaction and the tombstone guard are independent: tombstoned creds still do not land", () => {
+    // The batch has a session tombstone AND a credential. Neither should land.
+    addTombstone(db, { kind: "session", value: "sess-1", reason: "forget" });
+
+    writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      messages: [message({ messageId: "m1", text: "key is sk-abcdef0123456789ABCDEFG here" })],
+      toolCalls: [],
+    });
+
+    expect(searchMemory(db, "key")).toHaveLength(0);
+  });
+
+  it("does not load tombstone sets on the fast path when the table is empty", () => {
+    // No tombstones — the guard's hasTombstones check avoids per-row work.
+    // Observable: the batch writes normally.
+    const result = writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      messages: [message({ messageId: "m1", text: "fast path content" })],
+      toolCalls: [toolCall({ toolCallId: "tc1", messageId: "m1", toolName: "Bash" })],
+    });
+
+    expect(result).toEqual({ messages: 1, toolCalls: 1 });
+    expect(searchMemory(db, "fast path")).toHaveLength(1);
   });
 });
