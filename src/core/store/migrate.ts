@@ -4,7 +4,7 @@ import type DatabaseType from "better-sqlite3";
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Ordered migration steps. Each step's `to` is the schema version it produces,
@@ -12,7 +12,7 @@ export const SCHEMA_VERSION = 2;
  * a `state_signal` column), append a step with the next version number and the
  * DDL that applies it:
  *
- *   { to: 2, up: (db) => db.exec("ALTER TABLE messages ADD COLUMN state_signal TEXT") }
+ *   { to: 4, up: (db) => db.exec("ALTER TABLE messages ADD COLUMN state_signal TEXT") }
  *
  * Existing user stores are upgraded in order; a fresh store gets the base schema
  * from `initSchema` and is simply stamped to the latest version.
@@ -25,6 +25,22 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
     // stores upgrade without a re-index.
     to: 2,
     up: (db) => db.exec("ALTER TABLE source_files ADD COLUMN resume_token TEXT"),
+  },
+  {
+    // Tombstone table: durable records of forgotten/excluded sessions and projects.
+    // The write-path guard consults this table so re-indexing or a live push cannot
+    // resurrect data the user deliberately removed.
+    to: 3,
+    up: (db) =>
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tombstones (
+          kind       TEXT NOT NULL,
+          value      TEXT NOT NULL,
+          reason     TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (kind, value)
+        )
+      `),
   },
 ];
 

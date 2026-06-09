@@ -111,5 +111,13 @@ export function initSchema(db: DatabaseType.Database): void {
       INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
       INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
     END;
+
+    CREATE TABLE IF NOT EXISTS tombstones (
+      kind       TEXT NOT NULL,
+      value      TEXT NOT NULL,
+      reason     TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (kind, value)
+    );
   `);
 }
