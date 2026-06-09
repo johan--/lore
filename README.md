@@ -230,6 +230,7 @@ with `get_message`:
       "messageId": "9f3c…a71b",          // synthetic, stable across re-index
       "sessionId": "0c1d2e3f-…",
       "sourceFileId": "claude-code:…",
+      "source": "claude-code",            // harness namespace the hit came from
       "role": "assistant",
       "timestamp": "2026-06-05T18:22:41.103Z",
       "project": "/Users/you/lore",
