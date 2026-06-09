@@ -21,19 +21,35 @@ export interface SetupResult {
   verifyHits: number;
 }
 
+export interface SetupOptions {
+  /**
+   * Credential redaction for the backfill. Omit to use the write path default
+   * (on). Pass `false` to store transcripts verbatim (--no-redact).
+   */
+  redact?: boolean;
+}
+
 /**
  * The end-to-end onboarding action: probe the machine for known harnesses, index
  * each into the shared store, then prove the search path works by querying a
  * token drawn from the freshly indexed content. `home` is injectable for tests.
  * This never touches any MCP client config — registration is the agent's job.
  */
-export async function runSetup(db: Store, home?: string): Promise<SetupResult> {
+export async function runSetup(
+  db: Store,
+  home?: string,
+  opts: SetupOptions = {},
+): Promise<SetupResult> {
   const detected = await detectSources(home);
   const indexed: IndexedSource[] = [];
   for (const found of detected) {
     const adapter = getAdapter(found.source);
     if (!adapter) continue;
-    const totals = await backfillDirectory(db, found.dir, { adapter, progressEvery: 25 });
+    const totals = await backfillDirectory(db, found.dir, {
+      adapter,
+      progressEvery: 25,
+      redact: opts.redact,
+    });
     indexed.push({
       source: found.source,
       files: totals.files,

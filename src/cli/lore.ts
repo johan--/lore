@@ -52,9 +52,10 @@ Usage:
   lore setup [--home <dir>]        Detect known harnesses on this machine, index
                                      their history, verify search, and print how to
                                      register lore in your MCP client
-  lore index <dir> [--source <name>] [--subagents] [--redact]
+  lore index <dir> [--source <name>] [--subagents] [--no-redact]
                                      Backfill transcripts under <dir> into the store
-                                     (--source picks an adapter; default claude-code)
+                                     (--source picks an adapter; default claude-code;
+                                     credentials are redacted by default, --no-redact disables)
   lore search <query> [filters] [--relevant] [--json]
                                      Keyword search the store WITHOUT the MCP server.
                                      Filters: --project --branch --session --source --agent
@@ -79,7 +80,8 @@ Usage:
                                      Bucketed message activity over time (default by day).
                                      Filters: --project --source --since --until
   lore sample <dir>                Summarize a transcript dir's on-disk format
-  lore hook [--redact]             Index the current session from a hook payload on stdin
+  lore hook [--no-redact]          Index the current session from a hook payload on stdin
+                                     (credentials redacted by default; --no-redact disables)
   lore push                        Ingest one JSON batch of normalized records from stdin
                                      (the live-write path; mirrors the MCP push tool). Prints
                                      the write result, or an {error:"invalid_batch"} envelope
@@ -141,7 +143,7 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       const includeSubagents = rest.includes("--subagents");
-      const redact = rest.includes("--redact");
+      const redact = rest.includes("--no-redact") ? false : undefined;
       const sourceIdx = rest.indexOf("--source");
       const sourceName = sourceIdx >= 0 ? rest[sourceIdx + 1] : undefined;
       const adapter = sourceName ? getAdapter(sourceName) : undefined;
@@ -293,10 +295,11 @@ export async function runCli(argv: string[]): Promise<number> {
     case "setup": {
       const homeIdx = rest.indexOf("--home");
       const home = homeIdx >= 0 ? rest[homeIdx + 1] : undefined;
+      const redact = rest.includes("--no-redact") ? false : undefined;
       const db = openStore(resolveDbPath());
       let result: Awaited<ReturnType<typeof runSetup>>;
       try {
-        result = await runSetup(db, home);
+        result = await runSetup(db, home, { redact });
       } finally {
         db.close();
       }
@@ -335,7 +338,7 @@ export async function runCli(argv: string[]): Promise<number> {
       // Lifecycle hooks must never break the harness: read the payload, index
       // the named transcript best-effort, and always exit 0.
       const payload = await readStdin();
-      const redact = rest.includes("--redact");
+      const redact = rest.includes("--no-redact") ? false : undefined;
       const db = openStore(resolveDbPath());
       try {
         await indexFromHookPayload(db, payload, { redact });

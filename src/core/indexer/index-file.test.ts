@@ -356,7 +356,7 @@ describe("indexFile", () => {
     expect(searchMemory(db, "alamo")).toHaveLength(1);
   });
 
-  it("keeps secrets verbatim by default (redaction off)", async () => {
+  it("redacts credentials by default (redaction on by default)", async () => {
     const secret = "sk-abcdEFGH1234abcdEFGH5678abcdEFGH90";
     const lines = [
       line({
@@ -369,10 +369,34 @@ describe("indexFile", () => {
       }),
     ];
     const path = await writeFixture(`${SESSION}.jsonl`, lines);
+    // No redact option — default should redact.
     await indexFile(db, { path });
 
     const row = db.prepare("SELECT text FROM messages").get() as { text: string };
+    expect(row.text).not.toContain(secret);
+    expect(row.text).toContain("[REDACTED]");
+    // Non-credential conversational content is preserved.
+    expect(row.text).toContain("alamo key");
+  });
+
+  it("keeps secrets verbatim when redact: false is explicit", async () => {
+    const secret = "sk-abcdEFGH1234abcdEFGH5678abcdEFGH90";
+    const lines = [
+      line({
+        type: "user",
+        uuid: "u-secret2",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:01.000Z",
+        sessionId: SESSION,
+        message: { role: "user", content: `alamo key ${secret}` },
+      }),
+    ];
+    const path = await writeFixture(`${SESSION}.jsonl`, lines);
+    await indexFile(db, { path, redact: false });
+
+    const row = db.prepare("SELECT text FROM messages").get() as { text: string };
     expect(row.text).toContain(secret);
+    expect(row.text).not.toContain("[REDACTED]");
   });
 
   it("truncates and flags a multi-MB line instead of crashing or returning it raw", async () => {

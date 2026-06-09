@@ -27,8 +27,9 @@ export interface WriteOptions {
    */
   mode?: "full" | "append";
   /**
-   * Opt-in credential redaction over message text and tool payloads. Off by
-   * default — the local store keeps everything verbatim unless asked.
+   * Credential redaction over message text and tool payloads. On by default —
+   * obvious live credentials (sk-, gh tokens, AWS keys, etc.) are scrubbed at
+   * index time. Pass `redact: false` to store everything verbatim.
    */
   redact?: boolean;
 }
@@ -82,8 +83,9 @@ export function writeRecordBatch(
   opts: WriteOptions = {},
 ): WriteResult {
   const mode = opts.mode ?? "append";
-  const messages = opts.redact ? batch.messages.map(redactMessage) : batch.messages;
-  const toolCalls = opts.redact ? batch.toolCalls.map(redactToolCall) : batch.toolCalls;
+  const shouldRedact = opts.redact ?? true;
+  const messages = shouldRedact ? batch.messages.map(redactMessage) : batch.messages;
+  const toolCalls = shouldRedact ? batch.toolCalls.map(redactToolCall) : batch.toolCalls;
   assertBatchMembership(batch, messages, toolCalls);
 
   const apply = db.transaction(() => {

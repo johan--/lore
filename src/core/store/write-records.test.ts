@@ -188,7 +188,33 @@ describe("writeRecordBatch", () => {
     expect(newSession.message_count).toBe(1);
   });
 
-  it("redacts credentials in message text and tool payloads when opted in", () => {
+  it("redacts credentials in message text and tool payloads by default", () => {
+    // No redact option — default should redact.
+    writeRecordBatch(db, {
+      sourceFile: sourceFile(),
+      messages: [message({ messageId: "m1", text: "key is sk-abcdef0123456789ABCDEFG here" })],
+      toolCalls: [
+        toolCall({
+          toolCallId: "tc1",
+          messageId: "m1",
+          toolName: "Bash",
+          input: "export TOK=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+          result: "ok",
+        }),
+      ],
+    });
+
+    const hit = searchMemory(db, "key")[0];
+    expect(hit?.text).toContain("[REDACTED]");
+    expect(hit?.text).not.toContain("sk-abcdef");
+    const call = db.prepare("SELECT input FROM tool_calls WHERE tool_call_id = ?").get("tc1") as {
+      input: string;
+    };
+    expect(call.input).toContain("[REDACTED]");
+    expect(call.input).not.toContain("ghp_");
+  });
+
+  it("redacts credentials in message text and tool payloads when redact: true is explicit", () => {
     writeRecordBatch(
       db,
       {
@@ -217,13 +243,27 @@ describe("writeRecordBatch", () => {
     expect(call.input).not.toContain("ghp_");
   });
 
-  it("does not mutate the caller's records when redacting", () => {
-    const msg = message({ messageId: "m1", text: "token sk-abcdef0123456789ABCDEFG end" });
+  it("keeps credentials verbatim when redact: false opts out", () => {
+    const secret = "sk-abcdef0123456789ABCDEFG";
     writeRecordBatch(
       db,
-      { sourceFile: sourceFile(), messages: [msg], toolCalls: [] },
-      { redact: true },
+      {
+        sourceFile: sourceFile(),
+        messages: [message({ messageId: "m1", text: `key is ${secret} here` })],
+        toolCalls: [],
+      },
+      { redact: false },
     );
+
+    const hit = searchMemory(db, "key")[0];
+    expect(hit?.text).toContain(secret);
+    expect(hit?.text).not.toContain("[REDACTED]");
+  });
+
+  it("does not mutate the caller's records when redacting", () => {
+    const msg = message({ messageId: "m1", text: "token sk-abcdef0123456789ABCDEFG end" });
+    // Default redact-on path.
+    writeRecordBatch(db, { sourceFile: sourceFile(), messages: [msg], toolCalls: [] });
     expect(msg.text).toBe("token sk-abcdef0123456789ABCDEFG end");
   });
 });
