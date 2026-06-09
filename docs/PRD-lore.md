@@ -171,7 +171,8 @@ Transcripts contain secrets, `.env` dumps, tokens, and PII (gateway tokens, Tail
 
 - **The database is local-only, never committed.** `*.db`/`data/` are git-ignored from day one. Publishing the repo never publishes a corpus.
 - **Fixtures are synthetic or scrubbed** — never real transcript excerpts in the repo/tests.
-- **Optional redaction pass on `text`** (decided in v1 scope vs. opt-in): a secret-pattern scrubber applied to indexed `text` and MCP responses, since those are what an agent — or a compromised MCP client — sees. At minimum the PRD commits to *deciding* this before any DB is shared, rather than discovering it after a leak.
+- **Redaction is on by default** (resolved — see `docs/adr/0001-redaction-on-by-default.md`): a conservative credential scrubber runs over `text` and tool payloads *before* anything is written, since those are what an agent — or a compromised MCP client — sees. `--no-redact` on `lore index` / `lore hook` / `lore setup` opts out for users who want everything verbatim.
+- **Removing memory is first-class and CLI-only** (see `docs/PRD-memory-control.md` and `docs/adr/0002-destructive-ops-require-explicit-confirm.md`): `lore forget` deletes a session or project point-in-time; `lore exclude` deletes a project and bars all future captures. Both preview the exact scope and act only with `--confirm`, and both write a tombstone so re-indexing or `push` cannot resurrect the data. These verbs are deliberately absent from the MCP tool surface — a compromised client must not be able to wipe memory.
 
 ### Distribution
 

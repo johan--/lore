@@ -182,6 +182,25 @@ add to `~/.claude/settings.json`:
 `lore hook` reads the payload on stdin, indexes just that transcript, and always
 exits 0 so it can never crash your harness.
 
+## Optional — Control what's remembered
+
+- **Credentials are redacted by default.** A conservative scrubber runs over
+  message text and tool payloads at index time (OpenAI / GitHub / AWS / Slack
+  keys, Bearer tokens, PEM private-key blocks); everything else is stored
+  verbatim. Pass `--no-redact` to `lore index` / `lore hook` / `lore setup` only
+  if you deliberately want credentials kept verbatim too.
+- **Removing memory** is a CLI-only, two-step, irreversible operation:
+  - `lore forget --session <id>` deletes one session; `lore forget --project
+    <path>` deletes a project's sessions (point-in-time — future sessions are
+    still indexed).
+  - `lore exclude --project <path>` deletes a project AND bars all future
+    captures; `lore exclude --list` / `--remove <path>` manage standing rules.
+  - The bare command only previews the exact scope. Nothing is deleted until you
+    re-run it with `--confirm`, and a tombstone then prevents re-indexing from
+    resurrecting the data. As the setup agent, never add `--confirm` on your own
+    initiative — surface the preview to the user and wait for their approval. The
+    `lore` skill carries the full protocol.
+
 ## Troubleshooting (when Step 1 or 2 fails)
 
 Steps 1–2 are the deterministic spine, but a **fresh machine** — especially a

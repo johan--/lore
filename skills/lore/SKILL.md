@@ -163,6 +163,65 @@ only** — it never receives or runs code.
 For the record shapes, see `src/core/records.ts`; for when to push vs. write an
 adapter, see **`references/setup.md`** (PUSH vs PULL decision).
 
+## Remove memory — `lore forget`, `lore exclude`
+
+These are destructive, irreversible commands. They follow a mandatory two-step
+confirmation: run the bare command to see the exact scope and counts; run again
+with `--confirm` to execute. The store is never touched on a bare run.
+
+```bash
+# Forget one session (point-in-time deletion -- future sessions still indexed)
+lore forget --session <session-id>              # preview: shows message + tool-call counts
+lore forget --session <session-id> --confirm    # execute: delete rows + write tombstone
+
+# Find the session id first if you don't have it:
+lore sessions --project "$PWD" --source claude-code --limit 10
+
+# Forget all sessions for a project (future sessions still indexed)
+lore forget --project /path/to/project          # preview
+lore forget --project /path/to/project --confirm
+
+# Exclude a project (delete existing + bar all future captures until removed)
+lore exclude --project /path/to/project         # preview
+lore exclude --project /path/to/project --confirm
+
+# Manage standing exclusions
+lore exclude --list                             # list all standing exclusions
+lore exclude --remove /path/to/project          # lift an exclusion (does NOT restore deleted data)
+```
+
+**Verb semantics:**
+- `forget` = point-in-time delete. What exists now is gone; future sessions for
+  the same project still get indexed.
+- `exclude` = standing rule. Deletes existing data AND bars all future captures
+  from the project until `--remove` is called. Use when you never want a project
+  in lore.
+
+**How tombstones protect you:** After a `forget` or `exclude --confirm`, a
+tombstone is written to the store. Re-indexing or `lore push` with the same
+session or project id is silently dropped -- the data cannot come back through
+the normal ingestion path.
+
+**A mistyped id/path is safe.** The preview for a non-existent session or project
+shows zero counts and exits 0. Nothing is deleted.
+
+### Human-in-the-loop rule (enforced for agents)
+
+> An agent using `lore forget` or `lore exclude` MUST follow this sequence and
+> MUST NOT supply `--confirm` on its own initiative:
+>
+> 1. Run the bare command (no `--confirm`) and surface the exact scope and counts
+>    to the human.
+> 2. Wait for explicit human approval of the displayed scope.
+> 3. Only after the human confirms: re-run the same command with `--confirm`.
+>
+> This is not optional ceremony. `forget`/`exclude` are irreversible. Showing
+> the blast radius before acting is the safety contract. An agent that decides
+> the counts look fine and adds `--confirm` on its own has violated this rule.
+
+These commands are intentionally CLI-only and are NOT exposed as MCP tools.
+A compromised MCP client must never be able to wipe memory.
+
 ## Index & teach new formats — see `references/setup.md`
 
 This part of the skill is about *using* what's indexed. Getting transcripts

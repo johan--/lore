@@ -114,7 +114,7 @@ Code that's `~/.claude/projects`:
 ```bash
 lore index ~/.claude/projects              # primary transcripts
 lore index ~/.claude/projects --subagents  # include subagent transcripts
-lore index ~/.claude/projects --redact     # opt-in secret redaction (see Privacy)
+lore index ~/.claude/projects --no-redact  # keep credentials verbatim (see Privacy)
 ```
 
 Other harnesses come in with `--source`. Codex, openclaw, Cursor, and Hermes are
@@ -283,12 +283,18 @@ receives or executes code.
 
 - The store is local (`~/.lore/lore.db`), lives outside any repo, and `*.db`
   is gitignored. Move it with `LORE_DB`.
-- Transcripts are indexed **verbatim by default.** It's your own memory, so
-  nothing gets dropped unless you ask.
-- **Opt-in redaction.** Pass `--redact` to `lore index` / `lore hook` and a
-  conservative credential scrubber runs over message text and tool payloads first
-  (OpenAI / GitHub / AWS / Slack keys, Bearer tokens, PEM private-key blocks).
-  Think of it as a safety net, not a guarantee.
+- **Credentials are redacted by default.** A conservative scrubber runs over
+  message text and tool payloads before anything is written (OpenAI / GitHub /
+  AWS / Slack keys, Bearer tokens, PEM private-key blocks). Everything else is
+  kept verbatim — it's your own memory. Treat the scrubber as a safety net, not
+  a guarantee.
+- **Opt out with `--no-redact`** on `lore index` / `lore hook` / `lore setup`
+  if you really want credentials stored verbatim too.
+- **Remove memory you didn't want kept.** `lore forget` deletes a session or a
+  project (point-in-time); `lore exclude` deletes a project and bars all future
+  captures from it. Both print an exact-scope preview and only act when you add
+  `--confirm`, and both write a tombstone so re-indexing can't resurrect the
+  data. See the `lore` skill for the full preview-then-confirm protocol.
 
 ## 🧬 How it works under the hood
 

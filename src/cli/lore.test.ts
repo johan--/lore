@@ -8,6 +8,7 @@ import { runCli } from "./lore.js";
 import { openStore } from "../core/store/open-store.js";
 import { upsertSourceFile } from "../core/store/upsert.js";
 import { searchMemory } from "../core/search/search-memory.js";
+import { listTombstones } from "../core/store/tombstones.js";
 
 /** Run `argv` with `input` piped on stdin, restoring the real stdin afterward. */
 async function runWithStdin(argv: string[], input: string): Promise<{ code: number; out: string }> {
@@ -629,5 +630,365 @@ describe("lore CLI", () => {
     const db = openStore(dbPath);
     expect(searchMemory(db, "keyword").length).toBeGreaterThan(0);
     db.close();
+  });
+});
+
+// ─── Helper: seed one message row directly into a fresh store ─────────────────
+
+function seedMessage(
+  dbPath: string,
+  opts: { sessionId: string; messageId: string; project: string; text: string },
+): void {
+  const db = openStore(dbPath);
+  db.prepare(
+    `INSERT INTO messages
+       (message_id, source_file_id, session_id, uuid, seq, role, timestamp, project, branch, text, text_truncated)
+     VALUES (?, 'sf-seed', ?, ?, 0, 'user', '2026-05-10T00:00:00.000Z', ?, 'main', ?, 0)`,
+  ).run(opts.messageId, opts.sessionId, opts.messageId + "-uuid", opts.project, opts.text);
+  db.close();
+}
+
+// ─── forget / exclude CLI tests ───────────────────────────────────────────────
+
+describe("lore forget / exclude CLI", () => {
+  let dir2: string;
+  let dbPath2: string;
+  let prevDb: string | undefined;
+
+  beforeEach(async () => {
+    dir2 = await mkdtemp(join(tmpdir(), "lore-forget-"));
+    dbPath2 = join(dir2, "lore.db");
+    prevDb = process.env.LORE_DB;
+    process.env.LORE_DB = dbPath2;
+  });
+
+  afterEach(async () => {
+    if (prevDb === undefined) delete process.env.LORE_DB;
+    else process.env.LORE_DB = prevDb;
+    await rm(dir2, { recursive: true, force: true });
+  });
+
+  // ─── forget --session (bare preview) ───────────────────────────────────────
+
+  it("`lore forget --session` bare preview shows counts and leaves store unchanged", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-f1",
+      messageId: "mf1",
+      project: "/repo-f",
+      text: "forget preview content",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["forget", "--session", "sess-f1"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    // Preview text contains session id and counts
+    expect(out).toContain("sess-f1");
+    expect(out).toContain("1"); // 1 message
+    // Instructs user to re-run with --confirm
+    expect(out).toContain("--confirm");
+
+    // Store is byte-for-byte unchanged: message still exists
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mf1");
+    db.close();
+    expect(row).toBeTruthy();
+  });
+
+  // ─── forget --session --confirm ─────────────────────────────────────────────
+
+  it("`lore forget --session --confirm` removes rows and writes a tombstone", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-f2",
+      messageId: "mf2",
+      project: "/repo-f",
+      text: "forget confirmed content",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["forget", "--session", "sess-f2", "--confirm"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("sess-f2");
+
+    // Message row gone
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mf2");
+    expect(row).toBeUndefined();
+
+    // Tombstone written
+    const tombstones = listTombstones(db, "session");
+    expect(tombstones.some((t) => t.value === "sess-f2")).toBe(true);
+    db.close();
+  });
+
+  // ─── forget --session with unknown id yields zero-count preview ─────────────
+
+  it("`lore forget --session` with unknown id shows zero counts and exits 0", async () => {
+    // Create an empty store
+    openStore(dbPath2).close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["forget", "--session", "does-not-exist"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("does-not-exist");
+    expect(out).toContain("0"); // zero messages
+  });
+
+  // ─── forget --project (bare preview) ────────────────────────────────────────
+
+  it("`lore forget --project` bare preview shows counts and leaves store unchanged", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-fp1",
+      messageId: "mfp1",
+      project: "/proj-forget",
+      text: "forget project preview",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["forget", "--project", "/proj-forget"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("/proj-forget");
+    expect(out).toContain("sess-fp1");
+    expect(out).toContain("--confirm");
+
+    // Store unchanged
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mfp1");
+    db.close();
+    expect(row).toBeTruthy();
+  });
+
+  // ─── forget --project --confirm ──────────────────────────────────────────────
+
+  it("`lore forget --project --confirm` removes rows and writes per-session tombstones", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-fp2",
+      messageId: "mfp2",
+      project: "/proj-confirm",
+      text: "forget project confirmed",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["forget", "--project", "/proj-confirm", "--confirm"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mfp2");
+    expect(row).toBeUndefined();
+
+    // Per-session tombstone written (NOT a project tombstone)
+    const sessionTombstones = listTombstones(db, "session");
+    expect(sessionTombstones.some((t) => t.value === "sess-fp2")).toBe(true);
+    const projectTombstones = listTombstones(db, "project");
+    expect(projectTombstones.length).toBe(0);
+    db.close();
+  });
+
+  // ─── exclude --project (bare preview) ───────────────────────────────────────
+
+  it("`lore exclude --project` bare preview shows counts and leaves store unchanged", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-ex1",
+      messageId: "mex1",
+      project: "/proj-excl",
+      text: "exclude project preview",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--project", "/proj-excl"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("/proj-excl");
+    expect(out).toContain("--confirm");
+
+    // Store unchanged
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mex1");
+    db.close();
+    expect(row).toBeTruthy();
+  });
+
+  // ─── exclude --project --confirm creates standing exclusion ─────────────────
+
+  it("`lore exclude --project --confirm` deletes rows and creates a standing project tombstone", async () => {
+    seedMessage(dbPath2, {
+      sessionId: "sess-ex2",
+      messageId: "mex2",
+      project: "/proj-excl-confirm",
+      text: "exclude confirmed",
+    });
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--project", "/proj-excl-confirm", "--confirm"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+
+    const db = openStore(dbPath2);
+    const row = db.prepare("SELECT message_id FROM messages WHERE message_id = ?").get("mex2");
+    expect(row).toBeUndefined();
+
+    // Project tombstone (standing rule) written
+    const projectTombstones = listTombstones(db, "project");
+    expect(projectTombstones.some((t) => t.value === "/proj-excl-confirm")).toBe(true);
+    db.close();
+  });
+
+  // ─── exclude --list shows standing exclusions ────────────────────────────────
+
+  it("`lore exclude --list` shows standing exclusions after one is created", async () => {
+    openStore(dbPath2).close();
+    // Create a standing exclusion via --confirm
+    const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await runCli(["exclude", "--project", "/proj-list-excl", "--confirm"]);
+    errSpy.mockRestore();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--list"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("/proj-list-excl");
+  });
+
+  // ─── exclude --remove lifts a standing exclusion ─────────────────────────────
+
+  it("`lore exclude --remove` lifts a standing exclusion", async () => {
+    openStore(dbPath2).close();
+    // Create exclusion first
+    {
+      const spy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      await runCli(["exclude", "--project", "/proj-remove-excl", "--confirm"]);
+      spy.mockRestore();
+    }
+
+    // Verify it exists
+    {
+      const db = openStore(dbPath2);
+      const before = listTombstones(db, "project");
+      db.close();
+      expect(before.some((t) => t.value === "/proj-remove-excl")).toBe(true);
+    }
+
+    // Now remove it
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--remove", "/proj-remove-excl"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("/proj-remove-excl");
+    expect(out).toContain("lifted");
+
+    // Tombstone gone
+    const db = openStore(dbPath2);
+    const after = listTombstones(db, "project");
+    db.close();
+    expect(after.some((t) => t.value === "/proj-remove-excl")).toBe(false);
+  });
+
+  // ─── exclude --list shows "No standing exclusions" when empty ────────────────
+
+  it("`lore exclude --list` prints empty message when no exclusions exist", async () => {
+    openStore(dbPath2).close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--list"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    expect(writes.join("")).toContain("No standing exclusions");
+  });
+
+  // ─── missing store returns error ─────────────────────────────────────────────
+
+  it("`lore forget` returns non-zero when the store does not exist", async () => {
+    process.env.LORE_DB = join(dir2, "absent.db");
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["forget", "--session", "any"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
+
+  it("`lore exclude` returns non-zero when the store does not exist", async () => {
+    process.env.LORE_DB = join(dir2, "absent.db");
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["exclude", "--project", "/any"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
+
+  // ─── missing required argument returns non-zero ──────────────────────────────
+
+  it("`lore forget` with no subcommand returns non-zero", async () => {
+    openStore(dbPath2).close();
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["forget"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
+  });
+
+  it("`lore exclude` with no subcommand returns non-zero", async () => {
+    openStore(dbPath2).close();
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const code = await runCli(["exclude"]);
+    spy.mockRestore();
+    expect(code).toBe(1);
   });
 });

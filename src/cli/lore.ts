@@ -35,7 +35,22 @@ import {
   renderSessionPage,
   renderSessionWindow,
   renderTimeline,
+  renderForgetSessionPreview,
+  renderForgetProjectPreview,
+  renderExcludeProjectPreview,
+  renderExcludeList,
+  renderExcludeRemoved,
 } from "./render-results.js";
+import {
+  previewForgetSession,
+  executeForgetSession,
+  previewForgetProject,
+  executeForgetProject,
+  previewExcludeProject,
+  executeExcludeProject,
+  removeExclusion,
+  listExclusions,
+} from "../core/ingest/forget.js";
 
 /** Print a `{ error }` envelope to stdout (json) or a message to stderr (human). */
 function emitNotFound(kind: string, messageId: string, json: boolean): void {
@@ -46,7 +61,7 @@ function emitNotFound(kind: string, messageId: string, json: boolean): void {
   }
 }
 
-const USAGE = `lore — full-fidelity agent session memory
+const USAGE = `lore -- full-fidelity agent session memory
 
 Usage:
   lore setup [--home <dir>]        Detect known harnesses on this machine, index
@@ -79,6 +94,21 @@ Usage:
   lore timeline [filters] [--bucket day|hour] [--json]
                                      Bucketed message activity over time (default by day).
                                      Filters: --project --source --since --until
+  lore forget --session <id>       Preview what would be deleted for that session.
+  lore forget --session <id> --confirm
+                                     Delete all rows for <id> and write a tombstone so
+                                     re-indexing cannot resurrect them.
+  lore forget --project <path>     Preview what would be deleted for that project.
+  lore forget --project <path> --confirm
+                                     Delete all rows for <path> (future sessions still
+                                     indexed -- use exclude for a standing rule).
+  lore exclude --project <path>    Preview: delete existing rows AND bar all future
+                                     captures from <path>.
+  lore exclude --project <path> --confirm
+                                     Execute the exclusion (delete + standing rule).
+  lore exclude --list              List all standing project exclusions.
+  lore exclude --remove <path>     Lift a standing exclusion so future captures are
+                                     indexed again (does not restore deleted data).
   lore sample <dir>                Summarize a transcript dir's on-disk format
   lore hook [--no-redact]          Index the current session from a hook payload on stdin
                                      (credentials redacted by default; --no-redact disables)
@@ -376,6 +406,111 @@ export async function runCli(argv: string[]): Promise<number> {
       } finally {
         db.close();
       }
+    }
+    case "forget": {
+      const sessionIdx = rest.indexOf("--session");
+      const projectIdx = rest.indexOf("--project");
+      const confirm = rest.includes("--confirm");
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        missingStore(dbPath);
+        return 1;
+      }
+      if (sessionIdx >= 0) {
+        const sessionId = rest[sessionIdx + 1];
+        if (!sessionId) {
+          process.stderr.write("error: `lore forget --session` requires a session id\n\n" + USAGE);
+          return 1;
+        }
+        const db = openStore(dbPath);
+        try {
+          const preview = confirm
+            ? executeForgetSession(db, sessionId)
+            : previewForgetSession(db, sessionId);
+          process.stdout.write(renderForgetSessionPreview(preview, confirm));
+        } finally {
+          db.close();
+        }
+        return 0;
+      }
+      if (projectIdx >= 0) {
+        const project = rest[projectIdx + 1];
+        if (!project) {
+          process.stderr.write("error: `lore forget --project` requires a path\n\n" + USAGE);
+          return 1;
+        }
+        const db = openStore(dbPath);
+        try {
+          const preview = confirm
+            ? executeForgetProject(db, project)
+            : previewForgetProject(db, project);
+          process.stdout.write(renderForgetProjectPreview(preview, confirm));
+        } finally {
+          db.close();
+        }
+        return 0;
+      }
+      process.stderr.write(
+        "error: `lore forget` requires --session <id> or --project <path>\n\n" + USAGE,
+      );
+      return 1;
+    }
+    case "exclude": {
+      const projectIdx = rest.indexOf("--project");
+      const removeIdx = rest.indexOf("--remove");
+      const list = rest.includes("--list");
+      const confirm = rest.includes("--confirm");
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        missingStore(dbPath);
+        return 1;
+      }
+      if (list) {
+        const db = openStore(dbPath);
+        try {
+          const exclusions = listExclusions(db);
+          process.stdout.write(renderExcludeList(exclusions));
+        } finally {
+          db.close();
+        }
+        return 0;
+      }
+      if (removeIdx >= 0) {
+        const project = rest[removeIdx + 1];
+        if (!project) {
+          process.stderr.write("error: `lore exclude --remove` requires a path\n\n" + USAGE);
+          return 1;
+        }
+        const db = openStore(dbPath);
+        try {
+          removeExclusion(db, project);
+          process.stdout.write(renderExcludeRemoved(project));
+        } finally {
+          db.close();
+        }
+        return 0;
+      }
+      if (projectIdx >= 0) {
+        const project = rest[projectIdx + 1];
+        if (!project) {
+          process.stderr.write("error: `lore exclude --project` requires a path\n\n" + USAGE);
+          return 1;
+        }
+        const db = openStore(dbPath);
+        try {
+          const preview = confirm
+            ? executeExcludeProject(db, project)
+            : previewExcludeProject(db, project);
+          process.stdout.write(renderExcludeProjectPreview(preview, confirm));
+        } finally {
+          db.close();
+        }
+        return 0;
+      }
+      process.stderr.write(
+        "error: `lore exclude` requires --project <path>, --list, or --remove <path>\n\n" + USAGE,
+      );
+      return 1;
     }
     case "serve": {
       await startStdioServer();

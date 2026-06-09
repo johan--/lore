@@ -120,7 +120,7 @@ source:
 lore index <transcript-dir>                      # default: claude-code adapter
 lore index <transcript-dir> --source <name>      # pick a registered adapter
 lore index <transcript-dir> --subagents          # include subagent files
-lore index <transcript-dir> --redact             # opt-in credential redaction
+lore index <transcript-dir> --no-redact          # keep credentials verbatim (redaction is on by default)
 ```
 
 Re-running is cheap — unchanged files are skipped by the per-file resume token

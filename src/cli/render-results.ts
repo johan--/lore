@@ -4,6 +4,12 @@ import type { MessageDetail } from "../core/retrieval/get-message.js";
 import type { GetContextResult } from "../core/retrieval/get-context.js";
 import type { GetSessionResult, GetSessionWindowResult } from "../core/retrieval/get-session.js";
 import type { TimelineEntry } from "../core/retrieval/timeline.js";
+import type {
+  ForgetSessionPreview,
+  ForgetProjectPreview,
+  ExcludeProjectPreview,
+} from "../core/ingest/forget.js";
+import type { Tombstone } from "../core/store/tombstones.js";
 
 /**
  * Render search hits for `lore search`. Kept pure (hits in, string out) so the
@@ -150,11 +156,95 @@ export function renderSessionWindow(result: GetSessionWindowResult, json: boolea
 /**
  * Render bucketed activity for `lore timeline`. JSON mode mirrors the MCP
  * `timeline` envelope as `{ buckets }`. Human mode prints one `bucket  count`
- * row per period in chronological order — enough to eyeball when a project was
+ * row per period in chronological order -- enough to eyeball when a project was
  * active and feed a `--since/--until` window back into search.
  */
 export function renderTimeline(buckets: TimelineEntry[], json: boolean): string {
   if (json) return JSON.stringify({ buckets }, null, 2) + "\n";
   if (buckets.length === 0) return "No activity.\n";
   return buckets.map((b) => `${b.bucket}  ${b.count}`).join("\n") + "\n";
+}
+
+/**
+ * Render a forget-session preview for `lore forget --session`. Shows the exact
+ * scope that would be removed on `--confirm`, without touching the store.
+ */
+export function renderForgetSessionPreview(
+  preview: ForgetSessionPreview,
+  confirmed: boolean,
+): string {
+  const verb = confirmed ? "Removed" : "Would remove";
+  return (
+    `${verb} session ${preview.sessionId}\n` +
+    `  messages:   ${preview.messages}\n` +
+    `  tool calls: ${preview.toolCalls}\n` +
+    (confirmed ? "" : "\nRe-run with --confirm to delete.\n")
+  );
+}
+
+/**
+ * Render a forget-project preview for `lore forget --project`. Shows all
+ * affected sessions and counts, without touching the store.
+ */
+export function renderForgetProjectPreview(
+  preview: ForgetProjectPreview,
+  confirmed: boolean,
+): string {
+  const verb = confirmed ? "Removed" : "Would remove";
+  const sessionList =
+    preview.sessions.length === 0
+      ? "  (no sessions found)\n"
+      : preview.sessions.map((s) => `  - ${s}`).join("\n") + "\n";
+  return (
+    `${verb} project ${preview.project}\n` +
+    `  sessions:\n` +
+    sessionList +
+    `  messages:   ${preview.messages}\n` +
+    `  tool calls: ${preview.toolCalls}\n` +
+    (confirmed ? "" : "\nRe-run with --confirm to delete.\n")
+  );
+}
+
+/**
+ * Render an exclude-project preview for `lore exclude --project`. Shows what
+ * would be deleted and that a standing exclusion rule would be created.
+ */
+export function renderExcludeProjectPreview(
+  preview: ExcludeProjectPreview,
+  confirmed: boolean,
+): string {
+  const verb = confirmed ? "Excluded" : "Would exclude";
+  const sessionList =
+    preview.sessions.length === 0
+      ? "  (no sessions found)\n"
+      : preview.sessions.map((s) => `  - ${s}`).join("\n") + "\n";
+  return (
+    `${verb} project ${preview.project}\n` +
+    `  sessions:\n` +
+    sessionList +
+    `  messages:   ${preview.messages}\n` +
+    `  tool calls: ${preview.toolCalls}\n` +
+    (confirmed
+      ? "Standing exclusion created -- future captures from this project are barred.\n"
+      : "\nRe-run with --confirm to delete existing rows and bar all future captures.\n")
+  );
+}
+
+/**
+ * Render the standing exclusion list for `lore exclude --list`.
+ */
+export function renderExcludeList(exclusions: Tombstone[]): string {
+  if (exclusions.length === 0) return "No standing exclusions.\n";
+  return (
+    exclusions
+      .map((e) => `${e.value}\n  excluded: ${e.created_at}  reason: ${e.reason}`)
+      .join("\n") + "\n"
+  );
+}
+
+/**
+ * Render the result of `lore exclude --remove <path>`.
+ */
+export function renderExcludeRemoved(project: string): string {
+  return `Exclusion lifted for ${project}.\nFuture captures from this project will be indexed again.\n`;
 }
