@@ -41,28 +41,41 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 ## 🚀 Quick start (paste this into your agent)
 
-Lore sets itself up. Drop the blurb below into any coding agent. It clones the
-repo, installs Lore, indexes your own history, registers itself into _its own_
-MCP config, figures out the reload step for your client, and proves search works
-before it calls itself done.
+Lore sets itself up. Drop the blurb below into any coding agent. It installs
+Lore, indexes your own history, and proves search works before it calls itself
+done — all server-free, no MCP registration required.
 
 ```
-Clone https://github.com/jordanhindo/lore into a directory of your choosing
-and cd into it, then set up Lore (full-fidelity session memory over MCP)
-for yourself. Read AGENT-ONBOARD.md in the repo you just cloned and follow
-it top to bottom: install + build, run `lore setup` to index my history
-and self-verify, register the Lore MCP server in your own client config,
-reload so the tools load, then prove it by calling search_memory for a word
-from a past session. Tell me any manual step (like restarting) that I have
-to do.
+Set up Lore (full-fidelity session memory) for yourself. Install it with
+`npm install -g @jordanhindo/lore`, then run `lore setup` to index my
+history and self-verify. Prove it by running `lore search` for a word from
+a past session and showing me a hit. The MCP server is optional — only
+register it (`lore serve`) if you specifically want MCP tool calls instead
+of the CLI; if you do, tell me the reload step I have to do.
 ```
 
 The deterministic recipe the agent follows lives in
-[`AGENT-ONBOARD.md`](AGENT-ONBOARD.md). Prefer to drive it yourself? The one
-command that does the indexing half is `lore setup` (below).
+[`AGENT-ONBOARD.md`](AGENT-ONBOARD.md), which keeps MCP registration as an
+optional step. Prefer the skill instead? `npx skills add jordanhindo/lore`
+(below) drops in the self-bootstrapping `lore` skill, which does all of this the
+next time you ask it to recall something.
 
 
 ## 🛠️ Install it yourself
+
+**Recommended — install the skill (it sets up the rest):**
+
+```bash
+npx skills add jordanhindo/lore
+```
+
+This drops the bundled **`lore` skill** into your agent (`~/.claude/skills/`). The
+skill is self-bootstrapping: the next time you ask your agent to "remember" /
+"recall" something or to "set up lore", it reads its own `references/setup.md`,
+installs the `lore` CLI, indexes your history, and proves search works — no MCP
+server required. One command installs the whole thing.
+
+**Or install the CLI directly:**
 
 ```bash
 npm install -g @jordanhindo/lore   # puts the `lore` command on your PATH
@@ -165,8 +178,9 @@ faithful stand-in for the server:
 
 The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
 loop — when to search, which id to spend, and how to drill down instead of
-dumping. Pair it with **`lore-setup`** (`skills/lore-setup/`) to get history
-indexed in the first place.
+dumping. It's self-bootstrapping: its `references/setup.md` covers getting history
+indexed in the first place (install, index/backfill a harness, write an adapter,
+or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
 
 ## 🔌 Serve it to your client
 
@@ -258,11 +272,12 @@ For Claude Code, add to `~/.claude/settings.json`:
 Don't see your agent on the list? `lore sample <transcript-dir>` summarizes its
 on-disk format — it recognizes JSONL, SQLite databases (read via the file header,
 never by loading the DB), and whole-file JSON — so you can see an unknown
-harness's shape before writing anything. The bundled **lore-setup** skill
-(`skills/lore-setup/`) walks an agent from "installed" to "my sessions are
-searchable," including writing and proving a new adapter, or using the live
-`push` path when a harness keeps no files at all. `push` is **data only**: it
-validates every record at the boundary and never receives or executes code.
+harness's shape before writing anything. The bundled **`lore` skill**'s
+`references/setup.md` (`skills/lore/references/setup.md`) walks an agent from
+"installed" to "my sessions are searchable," including writing and proving a new
+adapter, or using the live `push` path when a harness keeps no files at all.
+`push` is **data only**: it validates every record at the boundary and never
+receives or executes code.
 
 ## 🔒 Privacy
 

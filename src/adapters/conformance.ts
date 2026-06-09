@@ -56,8 +56,9 @@ interface IngestedTree {
 /**
  * Run an adapter end to end through the universal contract and return a
  * structured report. Pure of any test framework (no assertions, no process exit)
- * so it backs both a vitest test and the `/lore-setup` self-onboarding flow,
- * where a freshly written adapter must prove itself before it is registered.
+ * so it backs both a vitest test and the lore skill's self-onboarding flow
+ * (skills/lore/references/setup.md), where a freshly written adapter must prove
+ * itself before it is registered.
  *
  * The structural checks confirm the adapter's shape; the round-trip check is the
  * real trust gate — it ingests the sample tree into an in-memory store, searches

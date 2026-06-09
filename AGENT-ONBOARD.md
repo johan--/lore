@@ -59,8 +59,9 @@ prints the registration guidance from Step 3.
   builds may also have `~/.codex/archived_sessions`. Run
   `lore sample <your-transcript-dir>` to inspect the format, then
   `lore index <dir> --source <name>`. If no adapter fits, follow
-  the `lore-setup` skill (`skills/lore-setup/`) to write and prove one, or use
-  the live `push` MCP tool if your harness has no files at all.
+  the `lore` skill's `references/setup.md` (`skills/lore/references/setup.md`) to
+  write and prove one, or use the live `push` MCP tool if your harness has no
+  files at all.
 - If the search self-check says **OK**, indexing and retrieval both work. For each
   source you care about, sanity-check the per-source line: a first run should show
   non-zero messages, while a repeat run may show `0 messages` because all files
@@ -238,6 +239,6 @@ differently-configured one) writes elsewhere:
 1. `lore sample <your-transcript-dir>` to confirm there are transcripts and see
    the on-disk shape.
 2. `lore index <dir> --source <name>` to index them with an existing adapter.
-3. If no adapter fits the format, follow the `lore-setup` skill
-   (`skills/lore-setup/`) to write and prove a new one, or — for a harness with
-   no transcript files at all — use the live `push` MCP tool.
+3. If no adapter fits the format, follow the `lore` skill's `references/setup.md`
+   (`skills/lore/references/setup.md`) to write and prove a new one, or — for a
+   harness with no transcript files at all — use the live `push` MCP tool.

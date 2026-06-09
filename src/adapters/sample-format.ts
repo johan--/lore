@@ -51,9 +51,10 @@ const CANDIDATE_EXTENSIONS = [".jsonl", ".db", ".vscdb", ".sqlite", ".sqlite3", 
 const SQLITE_ROW_SAMPLE_LIMIT = 1000;
 
 /**
- * Summarize a transcript directory's on-disk shape so an onboarding agent (or
- * `/lore-setup`) can reason about an unknown harness's format without reading
- * whole files. It recognizes three container shapes and reports what each needs:
+ * Summarize a transcript directory's on-disk shape so an onboarding agent
+ * (following the lore skill's references/setup.md) can reason about an unknown
+ * harness's format without reading whole files. It recognizes three container
+ * shapes and reports what each needs:
  *
  *  - **JSONL** (Claude Code, Codex, openclaw): distinct top-level keys and line
  *    `type` values plus a few raw sample lines.

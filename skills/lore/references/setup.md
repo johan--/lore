@@ -1,14 +1,12 @@
----
-name: lore-setup
-description: Use to onboard a harness into lore (the local, full-fidelity session-memory store) so its sessions become searchable over MCP — the "get my sessions into lore" / "make lore understand my harness" task. Trigger when someone wants to index or backfill old/existing sessions (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), read indexed sessions straight back with the server-free `lore search` / `lore sessions` CLI (no MCP server required), register the lore MCP server in their client, teach lore to read a harness it has no adapter for yet (write and prove an adapter — checkAdapterConformance, round-trip — for whatever it stores — JSONL, SQLite, or whole-file JSON, including homegrown CLIs), or feed a live process that writes no transcript files via push. Do NOT trigger for querying memory that is already indexed, or for parsing transcripts unrelated to lore.
----
+# lore — setup & onboarding (reference)
 
-# lore-setup
-
-This skill makes onboarding a harness into `lore` **deterministic** — an agent
-should be able to follow it cold, with no judgement calls, and end with its own
-transcripts searchable over MCP. Self-setup is the proof that lore works for a
-new harness.
+Read this when the `lore` CLI isn't installed yet, or when the thing you want to
+recall **isn't indexed yet** — onboarding a harness, backfilling old sessions,
+teaching lore a format it has no adapter for, or feeding a live process that
+writes no transcript files. The parent `lore` skill is about *using* what's
+indexed; this reference is about *getting content in* and making the CLI
+available. It is written to be followed cold, with no judgement calls, ending
+with your transcripts searchable.
 
 `lore` is a local-only SQLite + FTS5 store of agent session transcripts. Each
 harness writes into its own `source` namespace (`claude-code`, `codex`,
@@ -62,16 +60,27 @@ When both are possible, prefer PULL: it backfills all history, not just sessions
 from now on. PUSH is the immediate zero-setup front door; a code adapter is the
 durable, backfilling solution.
 
-## Step 1 — Install and build
+## Step 1 — Install the CLI
+
+The fastest path — and the one to use if you reached this skill via
+`npx skills add jordanhindo/lore` (so you don't have the repo cloned) — is the
+global install:
 
 ```bash
-cd /path/to/lore
+npm install -g @jordanhindo/lore   # puts the `lore` command on PATH
+```
+
+From source instead (only needed to contribute or write a new adapter, which
+requires the source tree):
+
+```bash
+git clone https://github.com/jordanhindo/lore && cd lore
 npm install
 npm run build
 npm link          # optional: puts `lore` on PATH
 ```
 
-Requires Node 22+. Verify: `lore help` prints usage.
+Requires Node 22+. Verify either way: `lore help` prints usage.
 
 ## Step 2 — Look at the format
 
@@ -205,7 +214,8 @@ boundary, and rejects a malformed batch without writing. It never receives or
 executes code — there is no code path by which pushing can run adapter logic.
 Pushes are idempotent (keyed upserts), so re-pushing a session does not duplicate
 it, and the session rollup is recomputed automatically. This is the fastest way
-to get memory working: no clone, no adapter, no rebuild.
+to get memory working: no clone, no adapter, no rebuild. The same batch shape is
+available straight from the CLI as `lore push` (see the parent skill).
 
 ## Step 4 — Read your memory back
 
@@ -228,7 +238,8 @@ lore search "<query>" --json                 # same { count, hits } envelope as 
 Every search filter the MCP tool takes is a flag here: `--project`, `--branch`,
 `--source`, `--agent`, `--skill`, `--tool`, `--role`, `--model`, `--since`,
 `--until`, `--limit`. Each hit leads with its `message id` and `session` so you
-can drill in.
+can drill in. The full drill-down loop (`lore get`, `lore context`,
+`lore session`) lives in the parent skill.
 
 To narrow to a single conversation, find the session first, then scope to it:
 
@@ -291,7 +302,7 @@ and confirm you get hits whose `source` is `<name>`. (If you registered the
 server in Step 4b, `search_memory` with
 `{ "source": "<name>", "query": "<…>" }` should return the same hits — they read
 the same store.) A green search against the new namespace — produced by following
-this skill cold, with no server in the loop — is the proof that the harness is
+this reference cold, with no server in the loop — is the proof that the harness is
 onboarded.
 
 ## Checklist

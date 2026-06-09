@@ -4,5 +4,6 @@ coverage
 *.db
 *.db-*
 data
+.omc
 *.md
 package-lock.json
