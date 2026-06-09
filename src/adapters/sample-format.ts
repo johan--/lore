@@ -52,7 +52,7 @@ const SQLITE_ROW_SAMPLE_LIMIT = 1000;
 
 /**
  * Summarize a transcript directory's on-disk shape so an onboarding agent
- * (following the lore skill's references/setup.md) can reason about an unknown
+ * (following the lore skill's references/setup/index.md) can reason about an unknown
  * harness's format without reading whole files. It recognizes three container
  * shapes and reports what each needs:
  *

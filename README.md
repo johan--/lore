@@ -71,7 +71,7 @@ npx skills add jordanhindo/lore
 
 This drops the bundled **`lore` skill** into your agent (`~/.claude/skills/`). The
 skill is self-bootstrapping: the next time you ask your agent to "remember" /
-"recall" something or to "set up lore", it reads its own `references/setup.md`,
+"recall" something or to "set up lore", it reads its own `references/setup/index.md`,
 installs the `lore` CLI, indexes your history, and proves search works — no MCP
 server required. One command installs the whole thing.
 
@@ -135,6 +135,17 @@ arrays, so the Cursor adapter indexes text only and fabricates no tool calls.
 Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
 
+Codex does not currently provide a Lore-compatible lifecycle hook. For active
+Codex Desktop sessions, use the dedicated one-shot catch-up command from its
+`notify` hook, cron, launchd, or a manual terminal:
+
+```bash
+lore sync codex
+```
+
+It indexes `~/.codex/sessions` incrementally, with `~/.codex/archived_sessions`
+only as a compatibility fallback.
+
 ## 💻 Recall from the CLI — no server required
 
 You don't need the MCP server to use Lore. The `lore` command opens the SQLite
@@ -178,7 +189,7 @@ faithful stand-in for the server:
 
 The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
 loop — when to search, which id to spend, and how to drill down instead of
-dumping. It's self-bootstrapping: its `references/setup.md` covers getting history
+dumping. It's self-bootstrapping: its `references/setup/index.md` covers getting history
 indexed in the first place (install, index/backfill a harness, write an adapter,
 or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
 
@@ -252,21 +263,17 @@ never blow the context window.
 
 ## 🪄 Survive compaction
 
-Compaction is the moment memory matters most, so catch the session right before
-the window gets wiped. Wire `lore hook` into your harness's lifecycle hooks. It
-reads the hook payload on stdin, indexes just that one file, and always exits 0
-(it will never crash your harness).
+Compaction is the moment memory matters most, so catch fresh session content
+before it disappears from the active context. The exact hook differs by harness:
+Claude Code can call `lore hook` from `PreCompact` / `SessionEnd`; Codex should
+call `lore sync codex` from its `notify` hook or a timer because it writes a
+session tree rather than a `transcript_path` hook payload.
 
-For Claude Code, add to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreCompact": [{ "hooks": [{ "type": "command", "command": "lore hook" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "lore hook" }] }]
-  }
-}
-```
+The skill setup references carry the exact recipes:
+[`skills/lore/references/setup/claude-code-hooks.md`](skills/lore/references/setup/claude-code-hooks.md),
+[`skills/lore/references/setup/codex-hooks.md`](skills/lore/references/setup/codex-hooks.md),
+and
+[`skills/lore/references/setup/other-harness-hooks.md`](skills/lore/references/setup/other-harness-hooks.md).
 
 ## 🧩 Bring your own harness
 
@@ -274,7 +281,7 @@ Don't see your agent on the list? `lore sample <transcript-dir>` summarizes its
 on-disk format — it recognizes JSONL, SQLite databases (read via the file header,
 never by loading the DB), and whole-file JSON — so you can see an unknown
 harness's shape before writing anything. The bundled **`lore` skill**'s
-`references/setup.md` (`skills/lore/references/setup.md`) walks an agent from
+`references/setup/index.md` (`skills/lore/references/setup/index.md`) walks an agent from
 "installed" to "my sessions are searchable," including writing and proving a new
 adapter, or using the live `push` path when a harness keeps no files at all.
 `push` is **data only**: it validates every record at the boundary and never

@@ -122,6 +122,76 @@ describe("lore CLI", () => {
     expect(code).toBe(1);
   });
 
+  it("`sync codex` incrementally indexes the active Codex session tree", async () => {
+    const codexDir = join(dir, ".codex", "sessions", "2026", "06", "09");
+    await mkdir(codexDir, { recursive: true });
+    const transcript =
+      JSON.stringify({
+        type: "session_meta",
+        payload: { cwd: "/repo/codex", model: "gpt-5-codex" },
+      }) +
+      "\n" +
+      JSON.stringify({
+        timestamp: "2026-06-09T12:00:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "codex live sync keyword" }],
+        },
+      }) +
+      "\n";
+    await writeFile(join(codexDir, "rollout-2026-live.jsonl"), transcript);
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const first = await runCli(["sync", "codex", "--home", dir]);
+    const second = await runCli(["sync", "--home", dir, "codex"]);
+    spy.mockRestore();
+
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("Synced codex");
+    expect(out).toContain("1 indexed");
+    expect(out).toContain("1 skipped");
+
+    const db = openStore(dbPath);
+    const hits = searchMemory(db, "sync", { source: "codex" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.project).toBe("/repo/codex");
+    db.close();
+  });
+
+  it("`sync codex` fails cleanly when no Codex transcripts are present", async () => {
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sync", "codex", "--home", dir]);
+    spy.mockRestore();
+
+    expect(code).toBe(1);
+    expect(writes.join("")).toContain("no Codex rollout transcripts");
+  });
+
+  it("`sync codex --home` requires a directory", async () => {
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sync", "codex", "--home"]);
+    spy.mockRestore();
+
+    expect(code).toBe(1);
+    expect(writes.join("")).toContain("--home requires a directory");
+  });
+
   it("`search <query>` finds indexed content without the MCP server", async () => {
     const db = openStore(dbPath);
     upsertSourceFile(db, {

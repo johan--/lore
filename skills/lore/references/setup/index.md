@@ -127,6 +127,17 @@ Re-running is cheap — unchanged files are skipped by the per-file resume token
 (byte offset for JSONL, last row id for databases, content hash for whole-file
 sources).
 
+Codex has on-disk JSONL transcripts but no Claude-style `transcript_path`
+lifecycle hook. For active Codex Desktop sessions, use the one-shot live
+catch-up command from Codex's `notify` hook, cron, launchd, or a manual terminal:
+
+```bash
+lore sync codex
+```
+
+It probes `~/.codex/sessions` first and uses `~/.codex/archived_sessions` only
+as a compatibility fallback.
+
 ### 3b. New harness, on-disk transcripts — write a reviewed code adapter
 
 An adapter is one small object satisfying `SourceAdapter`
@@ -283,11 +294,18 @@ Then reload: most clients only load MCP tools at session start, so start a new
 session (some expose a reload command that reseeds in place). A running session
 cannot register its own tools mid-flight.
 
-## Step 5 — Survive compaction (optional but recommended)
+## Step 5 — Wire freshness hooks (optional but recommended)
 
-Wire `lore hook` into the harness's pre-compaction / session-end lifecycle. It
-reads the hook payload on stdin, indexes just that transcript, and always exits 0
-so it can never crash the harness.
+Backfill gets history into Lore; hooks keep the current session fresh. Choose the
+reference that matches the harness:
+
+- **Claude Code:** [`claude-code-hooks.md`](claude-code-hooks.md) uses
+  `lore hook` because Claude Code emits a `transcript_path` payload.
+- **Codex:** [`codex-hooks.md`](codex-hooks.md) uses Codex `notify` plus
+  `lore sync codex` because Codex does not emit a `transcript_path` payload.
+- **Any unlisted harness:** [`other-harness-hooks.md`](other-harness-hooks.md)
+  explains how to decide between `lore hook`, `lore index`, a dedicated sync, or
+  live `lore push`.
 
 ## Step 6 — Verify (this is the proof)
 
