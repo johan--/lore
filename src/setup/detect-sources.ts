@@ -35,6 +35,18 @@ export interface DetectedSource {
   fileCount: number;
 }
 
+async function detectKnownLocation(
+  location: KnownLocation,
+  home: string,
+): Promise<DetectedSource | null> {
+  const adapter = getAdapter(location.source);
+  if (!adapter) return null;
+  const dir = join(home, ...location.segments);
+  const files = await adapter.discover(dir);
+  if (files.length === 0) return null;
+  return { source: location.source, dir, fileCount: files.length };
+}
+
 /**
  * Probe the machine for known harnesses that have transcripts on disk. For each
  * built-in location that exists and has discoverable files, return the source,
@@ -46,13 +58,24 @@ export async function detectSources(home: string = homedir()): Promise<DetectedS
   const matchedGroups = new Set<string>();
   for (const location of KNOWN_LOCATIONS) {
     if (location.group && matchedGroups.has(location.group)) continue;
-    const adapter = getAdapter(location.source);
-    if (!adapter) continue;
-    const dir = join(home, ...location.segments);
-    const files = await adapter.discover(dir);
-    if (files.length === 0) continue;
-    found.push({ source: location.source, dir, fileCount: files.length });
+    const detected = await detectKnownLocation(location, home);
+    if (!detected) continue;
+    found.push(detected);
     if (location.group) matchedGroups.add(location.group);
   }
   return found;
+}
+
+/**
+ * Detect the active Codex transcript root. Codex has no lifecycle hook today, so
+ * scheduled/live catch-up should index the current session tree first and use
+ * archived_sessions only as a compatibility fallback.
+ */
+export async function detectCodexSource(home: string = homedir()): Promise<DetectedSource | null> {
+  for (const location of KNOWN_LOCATIONS) {
+    if (location.source !== "codex") continue;
+    const detected = await detectKnownLocation(location, home);
+    if (detected) return detected;
+  }
+  return null;
 }

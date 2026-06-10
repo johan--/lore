@@ -1,6 +1,6 @@
 ---
 name: lore
-description: Use to recall anything from past agent sessions with the server-free `lore` CLI — the "what did we decide", "how did we build X", "why did we drop Y", "find that earlier conversation", "pull context from my last session" task. Trigger whenever you need memory of prior work (yours or another harness's) — searching transcripts by keyword or recency, reading a remembered message back in full, seeing what surrounded it, skimming or jumping around a past session, listing recent sessions, or charting when a project was active. Also covers writing new memory in live (`lore push`). This skill is self-bootstrapping — if the CLI isn't installed or your sessions aren't indexed yet, it covers setup too (detail in references/setup.md) — installing lore, indexing or backfilling a harness (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), teaching lore a new format by writing and proving an adapter, registering the MCP server, or feeding a live process via push. lore is a local SQLite store; this skill drives it entirely through the CLI, so NOTHING here needs the MCP server running. Reach for this skill even when the user just says "remember", "recall", "last time", "previously", "search my history", "index my sessions", or "set up lore" without naming lore.
+description: Use to recall anything from past agent sessions with the server-free `lore` CLI — the "what did we decide", "how did we build X", "why did we drop Y", "find that earlier conversation", "pull context from my last session" task. Trigger whenever you need memory of prior work (yours or another harness's) — searching transcripts by keyword or recency, reading a remembered message back in full, seeing what surrounded it, skimming or jumping around a past session, listing recent sessions, or charting when a project was active. Also covers writing new memory in live (`lore push`). This skill is self-bootstrapping — if the CLI isn't installed or your sessions aren't indexed yet, it covers setup too (detail in references/setup/index.md) — installing lore, indexing or backfilling a harness (Claude Code, Codex, Cursor, Cline, openclaw, Hermes, or any tool that records transcripts), teaching lore a new format by writing and proving an adapter, registering the MCP server, wiring freshness hooks, or feeding a live process via push. lore is a local SQLite store; this skill drives it entirely through the CLI, so NOTHING here needs the MCP server running. Reach for this skill even when the user just says "remember", "recall", "last time", "previously", "search my history", "index my sessions", or "set up lore" without naming lore.
 ---
 
 # lore
@@ -15,7 +15,7 @@ need it to use lore.
 
 If `lore help` errors, the CLI isn't installed yet — and if a search comes back
 empty because a harness was never indexed, that's the onboarding job. Both are
-covered by this same skill: read **`references/setup.md`** to install lore, index
+covered by this same skill: read **`references/setup/index.md`** to install lore, index
 or backfill a harness, teach lore a new format, or feed a live process, then come
 back here to use what you indexed. You don't hand off to another skill — this one
 self-bootstraps.
@@ -161,7 +161,7 @@ so a caller can tell a rejected write from an accepted one. `push` is **data
 only** — it never receives or runs code.
 
 For the record shapes, see `src/core/records.ts`; for when to push vs. write an
-adapter, see **`references/setup.md`** (PUSH vs PULL decision).
+adapter, see **`references/setup/index.md`** (PUSH vs PULL decision).
 
 ## Remove memory — `lore forget`, `lore exclude`
 
@@ -222,21 +222,23 @@ shows zero counts and exits 0. Nothing is deleted.
 These commands are intentionally CLI-only and are NOT exposed as MCP tools.
 A compromised MCP client must never be able to wipe memory.
 
-## Index & teach new formats — see `references/setup.md`
+## Index & teach new formats — see `references/setup/index.md`
 
 This part of the skill is about *using* what's indexed. Getting transcripts
 *into* lore — `lore setup` (auto-detect Claude Code / Codex), `lore index <dir>`,
-`lore sample <dir>`, `lore hook` (compaction capture), and **writing a reviewed
-code adapter for a brand-new harness** (the `checkAdapterConformance` round-trip)
-— is the deterministic onboarding flow in **`references/setup.md`**. Read that
-reference when the answer is "the thing I want isn't indexed yet"; don't
-re-derive the procedure here.
+`lore sync codex` (incremental active Codex catch-up), `lore sample <dir>`,
+`lore hook` (compaction capture for harnesses that emit a transcript path), and
+**writing a reviewed code adapter for a brand-new harness** (the
+`checkAdapterConformance` round-trip) — is the deterministic onboarding flow in
+**`references/setup/index.md`**. Read that reference when the answer is "the thing I
+want isn't indexed yet"; don't re-derive the procedure here.
 
 Quick reference only:
 
 ```bash
 lore setup            # detect known harnesses here, index, self-verify, print MCP registration
-lore index <dir> [--source <name>] [--subagents] [--redact]
+lore index <dir> [--source <name>] [--subagents] [--no-redact]
+lore sync codex       # incremental active Codex catch-up for cron/launchd/manual use
 lore sample <dir>     # summarize an unknown transcript dir's on-disk format
 ```
 
@@ -304,7 +306,7 @@ lore search "<topic>" --project "$PWD" --since 2026-05-01 --until 2026-06-01
 
 ## Checklist
 
-- [ ] `lore help` works (else see `references/setup.md` to install)
+- [ ] `lore help` works (else see `references/setup/index.md` to install)
 - [ ] Started from a search; used the ids it handed back (never invented one)
 - [ ] Narrowed with filters / `--around` instead of paging a whole session
 - [ ] Read the few right messages in full rather than skimming many snippets

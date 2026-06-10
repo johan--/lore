@@ -59,7 +59,7 @@ prints the registration guidance from Step 3.
   builds may also have `~/.codex/archived_sessions`. Run
   `lore sample <your-transcript-dir>` to inspect the format, then
   `lore index <dir> --source <name>`. If no adapter fits, follow
-  the `lore` skill's `references/setup.md` (`skills/lore/references/setup.md`) to
+  the `lore` skill's `references/setup/index.md` (`skills/lore/references/setup/index.md`) to
   write and prove one, or use the live `push` MCP tool if your harness has no
   files at all.
 - If the search self-check says **OK**, indexing and retrieval both work. For each
@@ -166,21 +166,16 @@ reference every agent on the machine can point at.
 
 ## Optional — Survive compaction
 
-Wire `lore hook` into your harness's pre-compaction / session-end lifecycle so
-the live session is indexed right before its context is wiped. For Claude Code,
-add to `~/.claude/settings.json`:
+Wire freshness after backfill so the active session is indexed before it falls
+out of context. The exact hook depends on the harness:
 
-```json
-{
-  "hooks": {
-    "PreCompact": [{ "hooks": [{ "type": "command", "command": "lore hook" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "lore hook" }] }]
-  }
-}
-```
-
-`lore hook` reads the payload on stdin, indexes just that transcript, and always
-exits 0 so it can never crash your harness.
+- Claude Code emits a `transcript_path` hook payload; use
+  `skills/lore/references/setup/claude-code-hooks.md`.
+- Codex writes a session tree and should run `lore sync codex`; use
+  `skills/lore/references/setup/codex-hooks.md`.
+- For anything else, use
+  `skills/lore/references/setup/other-harness-hooks.md` to choose between
+  `lore hook`, `lore index`, a dedicated sync command, or live `lore push`.
 
 ## Optional — Control what's remembered
 
@@ -258,6 +253,6 @@ differently-configured one) writes elsewhere:
 1. `lore sample <your-transcript-dir>` to confirm there are transcripts and see
    the on-disk shape.
 2. `lore index <dir> --source <name>` to index them with an existing adapter.
-3. If no adapter fits the format, follow the `lore` skill's `references/setup.md`
-   (`skills/lore/references/setup.md`) to write and prove a new one, or — for a
+3. If no adapter fits the format, follow the `lore` skill's `references/setup/index.md`
+   (`skills/lore/references/setup/index.md`) to write and prove a new one, or — for a
    harness with no transcript files at all — use the live `push` MCP tool.

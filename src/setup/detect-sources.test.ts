@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { detectSources } from "./detect-sources.js";
+import { detectCodexSource, detectSources } from "./detect-sources.js";
 
 describe("detectSources", () => {
   let home: string;
@@ -71,5 +71,20 @@ describe("detectSources", () => {
     expect(found).toHaveLength(1);
     expect(found[0]?.dir).toBe(join(home, ".codex", "sessions"));
     expect(found[0]?.fileCount).toBe(1);
+  });
+
+  it("detectCodexSource uses current sessions before archived sessions", async () => {
+    const sessionsDir = join(home, ".codex", "sessions", "2026", "06", "09");
+    const archiveDir = join(home, ".codex", "archived_sessions");
+    await mkdir(sessionsDir, { recursive: true });
+    await mkdir(archiveDir, { recursive: true });
+    await writeFile(join(sessionsDir, "rollout-2026-current.jsonl"), "{}\n");
+    await writeFile(join(archiveDir, "rollout-2026-archived.jsonl"), "{}\n");
+
+    const found = await detectCodexSource(home);
+
+    expect(found?.source).toBe("codex");
+    expect(found?.dir).toBe(join(home, ".codex", "sessions"));
+    expect(found?.fileCount).toBe(1);
   });
 });

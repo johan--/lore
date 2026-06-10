@@ -106,7 +106,7 @@ The current harness is line-shaped: its fixtures are a representative line strin
 The three new sources are added to the compile-time known-source list (the `Source` enum that every record schema validates against), so filtering works and pushed/ingested records for them validate. Adapters remain reviewed, committed builtins. There is no runtime loading or execution of adapter *code*; this was an explicit user-safety decision.
 
 **Self-onboarding skill rewrite.**
-The self-onboarding flow (now `skills/lore/references/setup.md`, merged into the single `lore` skill) is rewritten to cover non-JSONL formats, the two real tiers (write a code adapter, or push), the rewritten proof gate, and push as the immediate zero-setup path. The whole bundle is treated as one unit, consistent with the project rule that a skill is its entire folder.
+The self-onboarding flow (now `skills/lore/references/setup/index.md`, merged into the single `lore` skill) is rewritten to cover non-JSONL formats, the two real tiers (write a code adapter, or push), the rewritten proof gate, and push as the immediate zero-setup path. The whole bundle is treated as one unit, consistent with the project rule that a skill is its entire folder.
 
 ## Testing Decisions
 

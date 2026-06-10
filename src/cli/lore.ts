@@ -10,6 +10,7 @@ import { logger } from "../core/logger.js";
 import { getAdapter, adapterSources } from "../adapters/registry.js";
 import { sampleFormat, renderSample } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
+import { detectCodexSource } from "../setup/detect-sources.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { findRelevant } from "../core/search/find-relevant.js";
@@ -71,6 +72,11 @@ Usage:
                                      Backfill transcripts under <dir> into the store
                                      (--source picks an adapter; default claude-code;
                                      credentials are redacted by default, --no-redact disables)
+  lore sync codex [--home <dir>] [--no-redact]
+                                     Incrementally index the active Codex transcript
+                                     tree (~/.codex/sessions, archived fallback). This
+                                     is the incremental command for cron/launchd/live
+                                     catch-up when Codex has no lifecycle hook.
   lore search <query> [filters] [--relevant] [--json]
                                      Keyword search the store WITHOUT the MCP server.
                                      Filters: --project --branch --session --source --agent
@@ -146,6 +152,44 @@ function unreadableStore(dbPath: string): void {
   );
 }
 
+function parseSyncArgs(rest: string[]): {
+  source?: string;
+  home?: string;
+  noRedact: boolean;
+  error?: string;
+} {
+  let source: string | undefined;
+  let home: string | undefined;
+  let noRedact = false;
+
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === undefined) continue;
+    if (arg === "--home") {
+      const value = rest[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { source, home, noRedact, error: "error: --home requires a directory\n" };
+      }
+      home = value;
+      i++;
+      continue;
+    }
+    if (arg === "--no-redact") {
+      noRedact = true;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      return { source, home, noRedact, error: `error: unknown option for sync: ${arg}\n` };
+    }
+    if (source) {
+      return { source, home, noRedact, error: `error: unexpected sync argument: ${arg}\n` };
+    }
+    source = arg;
+  }
+
+  return { source, home, noRedact };
+}
+
 function withReadonlyStore<T>(
   dbPath: string,
   read: (db: Store) => T,
@@ -191,6 +235,49 @@ export async function runCli(argv: string[]): Promise<number> {
         process.stdout.write(
           `Indexed ${totals.files} files: ${totals.messages} messages, ` +
             `${totals.toolCalls} tool calls, ${totals.skipped} skipped.\n`,
+        );
+      } finally {
+        db.close();
+      }
+      return 0;
+    }
+    case "sync": {
+      const { source, home, noRedact, error } = parseSyncArgs(rest);
+      if (error) {
+        process.stderr.write(error);
+        return 1;
+      }
+      if (source !== "codex") {
+        process.stderr.write("error: `lore sync` currently supports only `codex`\n\n" + USAGE);
+        return 1;
+      }
+      const redact = noRedact ? false : undefined;
+      const detected = await detectCodexSource(home);
+      if (!detected) {
+        const base = home ?? "~";
+        process.stderr.write(
+          `error: no Codex rollout transcripts found under ${base}/.codex/sessions or ${base}/.codex/archived_sessions\n`,
+        );
+        return 1;
+      }
+      const adapter = getAdapter("codex");
+      if (!adapter) {
+        process.stderr.write("error: built-in codex adapter is not registered\n");
+        return 1;
+      }
+      const db = openStore(resolveDbPath());
+      try {
+        const totals = await backfillDirectory(db, detected.dir, {
+          adapter,
+          redact,
+          // Live catch-up should be quiet but still observable in logs on large
+          // trees. One output line below is the stable human/script contract.
+          progressEvery: 250,
+        });
+        process.stdout.write(
+          `Synced codex from ${detected.dir}: ${totals.files} files, ` +
+            `${totals.filesIndexed} indexed, ${totals.filesSkipped} skipped, ` +
+            `${totals.messages} messages, ${totals.toolCalls} tool calls.\n`,
         );
       } finally {
         db.close();
