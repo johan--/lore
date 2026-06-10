@@ -1,13 +1,41 @@
 #!/usr/bin/env bash
 set -u
 
-lock_dir="/tmp/lore-codex-sync.lock"
-if ! mkdir "$lock_dir" 2>/dev/null; then
+user_id="${UID:-$(id -u)}"
+state_dir="${LORE_CODEX_STATE_DIR:-${TMPDIR:-/tmp}/lore-codex-sync-$user_id}"
+lock_dir="$state_dir/lock"
+
+mkdir -p "$state_dir" 2>/dev/null || exit 0
+chmod 700 "$state_dir" 2>/dev/null || true
+
+acquire_lock() {
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" > "$lock_dir/pid" 2>/dev/null || true
+    return 0
+  fi
+
+  if [ -f "$lock_dir/pid" ]; then
+    old_pid="$(cat "$lock_dir/pid" 2>/dev/null || true)"
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      return 1
+    fi
+  fi
+
+  rm -rf "$lock_dir" 2>/dev/null || return 1
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" > "$lock_dir/pid" 2>/dev/null || true
+    return 0
+  fi
+
+  return 1
+}
+
+if ! acquire_lock; then
   exit 0
 fi
 
 cleanup() {
-  rmdir "$lock_dir" 2>/dev/null || true
+  rm -rf "$lock_dir" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 

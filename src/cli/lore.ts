@@ -75,7 +75,7 @@ Usage:
   lore sync codex [--home <dir>] [--no-redact]
                                      Incrementally index the active Codex transcript
                                      tree (~/.codex/sessions, archived fallback). This
-                                     is the one-shot command for cron/launchd/live
+                                     is the incremental command for cron/launchd/live
                                      catch-up when Codex has no lifecycle hook.
   lore search <query> [filters] [--relevant] [--json]
                                      Keyword search the store WITHOUT the MCP server.
@@ -254,8 +254,9 @@ export async function runCli(argv: string[]): Promise<number> {
       const redact = noRedact ? false : undefined;
       const detected = await detectCodexSource(home);
       if (!detected) {
+        const base = home ?? "~";
         process.stderr.write(
-          "error: no Codex rollout transcripts found under ~/.codex/sessions or ~/.codex/archived_sessions\n",
+          `error: no Codex rollout transcripts found under ${base}/.codex/sessions or ${base}/.codex/archived_sessions\n`,
         );
         return 1;
       }

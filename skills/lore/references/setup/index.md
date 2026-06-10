@@ -128,7 +128,7 @@ Re-running is cheap — unchanged files are skipped by the per-file resume token
 sources).
 
 Codex has on-disk JSONL transcripts but no Claude-style `transcript_path`
-lifecycle hook. For active Codex Desktop sessions, use the one-shot live
+lifecycle hook. For active Codex Desktop sessions, use the incremental live
 catch-up command from Codex's `notify` hook, cron, launchd, or a manual terminal:
 
 ```bash

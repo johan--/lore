@@ -136,7 +136,7 @@ Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
 
 Codex does not currently provide a Lore-compatible lifecycle hook. For active
-Codex Desktop sessions, use the dedicated one-shot catch-up command from its
+Codex Desktop sessions, use the dedicated incremental sync command from its
 `notify` hook, cron, launchd, or a manual terminal:
 
 ```bash

@@ -15,9 +15,11 @@ path is correct. Add this to `~/.claude/settings.json`:
 }
 ```
 
-`lore hook` reads the payload from stdin, indexes only that transcript, and exits
-0 even when the payload is missing or malformed. It should never crash the host
-harness.
+`lore hook` reads the payload from stdin and indexes only that transcript.
+Payload and transcript indexing failures are converted by `indexFromHookPayload`
+into `{ indexed: false }` so the CLI path exits 0 for those cases. Failures
+before that point, such as opening or initializing the Lore store, can still
+abort the process and should be fixed as setup problems.
 
 Verify with:
 

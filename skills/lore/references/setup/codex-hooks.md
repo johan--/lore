@@ -13,7 +13,8 @@ lore sync codex
 
 ## Notify hook
 
-Point Codex's `notify` command at the wrapper script from this repo:
+Point Codex's `notify` command at the wrapper script bundled with this repo or
+the npm package:
 
 ```toml
 notify = ["/absolute/path/to/lore/scripts/codex-notify-lore-sync.sh", "turn-ended"]
@@ -25,25 +26,32 @@ The wrapper does two things:
    standard location under `~/.codex/computer-use`.
 2. Starts `scripts/lore-codex-sync-once.sh` in the background.
 
-`lore-codex-sync-once.sh` uses a `/tmp/lore-codex-sync.lock` directory so a
-turn-ended notify sync and a launchd or cron sync cannot overlap.
+`lore-codex-sync-once.sh` uses a user-specific state directory at
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID` by default. Its PID-backed lock keeps a
+turn-ended notify sync and a launchd or cron sync from overlapping, and the
+wrapper writes bounded logs under that same directory. Set `LORE_CODEX_STATE_DIR`
+to choose a different lock/log location.
 
 ## Node and build requirements
 
-Build the repo before wiring the hook:
+For a source checkout, build the repo before wiring the hook:
 
 ```bash
 npm install
 npm run build
 ```
 
+For a global npm install, the package already includes `dist/` and `scripts/`;
+use the absolute path to the installed `scripts/codex-notify-lore-sync.sh`.
+
 The sync script finds `node` from `PATH`, `LORE_NODE_BIN`, or an installed nvm
 node under `~/.nvm/versions/node/*/bin/node`. If Codex runs with a sparse app
 environment, set `LORE_NODE_BIN` to an absolute Node executable path.
 
-By default the script runs the checked-out CLI at
-`dist/cli/lore.js`. Set `LORE_CLI_JS` if your hook should call a different built
-CLI file.
+By default the script runs the checked-out CLI at `dist/cli/lore.js`, which is
+the source-install path after `npm run build`. Global npm installs do not have
+that local checkout path; set `LORE_CLI_JS` if your hook should call a different
+built CLI file.
 
 ## Optional launchd fallback
 
@@ -65,5 +73,7 @@ After one Codex turn, run:
 lore search "<word from the current Codex session>" --source codex
 ```
 
-If the search is empty, check `/tmp/lore-codex-sync.err.log`, confirm the repo has
-been built, and run `scripts/lore-codex-sync-once.sh` manually.
+If the search is empty, check
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log`, which the wrapper creates
+when errors occur. Then confirm the repo has been built and run
+`scripts/lore-codex-sync-once.sh` manually.
