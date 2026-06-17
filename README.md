@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 ## ✨ Why you'll want it
 
 - 🔀 **One memory, every agent.** Claude Code, Codex, openclaw, Cursor, and
-  Hermes histories all land in one store, and any MCP client reads it. A session
+  Hermes histories all land in one store (separate from their own /.<agent> stores), and any MCP client reads it. A session
   in one agent is instantly readable by all the others. What Codex figures out,
   Claude Code knows.
 - 🧠 **It outlives the context window.** Compaction stops meaning amnesia.
