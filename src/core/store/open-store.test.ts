@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { openStore, openStoreReadonly, optimizeFts } from "./open-store.js";
+import { SCHEMA_VERSION, StoreSchemaTooNewError } from "./migrate.js";
 import { upsertMessage } from "./upsert.js";
 import { searchMemory } from "../search/search-memory.js";
 import type { MessageRecord } from "../records.js";
@@ -40,6 +42,23 @@ describe("openStoreReadonly", () => {
       const reader = openStoreReadonly(path);
       const hits = searchMemory(reader, "alamo");
       expect(hits.map((h) => h.messageId)).toEqual(["m1"]);
+      reader.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("can read a compatible store from a newer Lore version", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lore-ro-"));
+    const path = join(dir, "lore.db");
+    try {
+      const writer = openStore(path);
+      upsertMessage(writer, msg({ messageId: "m1", text: "remember alamo" }));
+      writer.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+      writer.close();
+
+      const reader = openStoreReadonly(path);
+      expect(searchMemory(reader, "alamo").map((h) => h.messageId)).toEqual(["m1"]);
       reader.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -85,6 +104,25 @@ describe("openStoreReadonly", () => {
       expect(reader.pragma("mmap_size", { simple: true })).toBe(1073741824);
       expect(reader.pragma("cache_size", { simple: true })).toBe(-65536);
       reader.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("openStore", () => {
+  it("refuses to write to a store from a newer Lore version before mutating it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lore-newer-"));
+    const path = join(dir, "lore.db");
+    try {
+      const writer = openStore(path);
+      writer.close();
+
+      const raw = new Database(path);
+      raw.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+      raw.close();
+
+      expect(() => openStore(path)).toThrow(StoreSchemaTooNewError);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

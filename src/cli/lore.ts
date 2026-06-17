@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
 import { openStore, openStoreReadonly, type Store } from "../core/store/open-store.js";
+import { StoreSchemaTooNewError } from "../core/store/migrate.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { backfillDirectory } from "../core/indexer/backfill.js";
 import { indexFromHookPayload } from "../hooks/index-current.js";
@@ -152,6 +153,29 @@ function unreadableStore(dbPath: string): void {
   );
 }
 
+function newerStoreForWrite(): void {
+  process.stderr.write(
+    "error: this Lore store was created by a newer version. " +
+      "Update Lore before running this write command.\n",
+  );
+}
+
+function newerStoreError(): { error: "newer_store"; detail: string } {
+  return { error: "newer_store", detail: "Update Lore before running this write command." };
+}
+
+function openStoreForWrite(dbPath: string): Store | null {
+  try {
+    return openStore(dbPath);
+  } catch (err) {
+    if (err instanceof StoreSchemaTooNewError) {
+      newerStoreForWrite();
+      return null;
+    }
+    throw err;
+  }
+}
+
 function parseSyncArgs(rest: string[]): {
   source?: string;
   home?: string;
@@ -229,7 +253,8 @@ export async function runCli(argv: string[]): Promise<number> {
         );
         return 1;
       }
-      const db = openStore(resolveDbPath());
+      const db = openStoreForWrite(resolveDbPath());
+      if (!db) return 1;
       try {
         const totals = await backfillDirectory(db, dir, { includeSubagents, redact, adapter });
         process.stdout.write(
@@ -265,7 +290,8 @@ export async function runCli(argv: string[]): Promise<number> {
         process.stderr.write("error: built-in codex adapter is not registered\n");
         return 1;
       }
-      const db = openStore(resolveDbPath());
+      const db = openStoreForWrite(resolveDbPath());
+      if (!db) return 1;
       try {
         const totals = await backfillDirectory(db, detected.dir, {
           adapter,
@@ -413,7 +439,8 @@ export async function runCli(argv: string[]): Promise<number> {
       const homeIdx = rest.indexOf("--home");
       const home = homeIdx >= 0 ? rest[homeIdx + 1] : undefined;
       const redact = rest.includes("--no-redact") ? false : undefined;
-      const db = openStore(resolveDbPath());
+      const db = openStoreForWrite(resolveDbPath());
+      if (!db) return 1;
       let result: Awaited<ReturnType<typeof runSetup>>;
       try {
         result = await runSetup(db, home, { redact });
@@ -456,7 +483,8 @@ export async function runCli(argv: string[]): Promise<number> {
       // the named transcript best-effort, and always exit 0.
       const payload = await readStdin();
       const redact = rest.includes("--no-redact") ? false : undefined;
-      const db = openStore(resolveDbPath());
+      const db = openStoreForWrite(resolveDbPath());
+      if (!db) return 0;
       try {
         await indexFromHookPayload(db, payload, { redact });
       } finally {
@@ -480,7 +508,11 @@ export async function runCli(argv: string[]): Promise<number> {
         );
         return 1;
       }
-      const db = openStore(resolveDbPath());
+      const db = openStoreForWrite(resolveDbPath());
+      if (!db) {
+        process.stdout.write(JSON.stringify(newerStoreError(), null, 2) + "\n");
+        return 1;
+      }
       try {
         const result = pushRecords(db, parsed);
         process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -509,7 +541,8 @@ export async function runCli(argv: string[]): Promise<number> {
           process.stderr.write("error: `lore forget --session` requires a session id\n\n" + USAGE);
           return 1;
         }
-        const db = openStore(dbPath);
+        const db = openStoreForWrite(dbPath);
+        if (!db) return 1;
         try {
           const preview = confirm
             ? executeForgetSession(db, sessionId)
@@ -526,7 +559,8 @@ export async function runCli(argv: string[]): Promise<number> {
           process.stderr.write("error: `lore forget --project` requires a path\n\n" + USAGE);
           return 1;
         }
-        const db = openStore(dbPath);
+        const db = openStoreForWrite(dbPath);
+        if (!db) return 1;
         try {
           const preview = confirm
             ? executeForgetProject(db, project)
@@ -553,13 +587,9 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       if (list) {
-        const db = openStore(dbPath);
-        try {
-          const exclusions = listExclusions(db);
-          process.stdout.write(renderExcludeList(exclusions));
-        } finally {
-          db.close();
-        }
+        const result = withReadonlyStore(dbPath, (db) => renderExcludeList(listExclusions(db)));
+        if (!result.ok) return 1;
+        process.stdout.write(result.value);
         return 0;
       }
       if (removeIdx >= 0) {
@@ -568,7 +598,8 @@ export async function runCli(argv: string[]): Promise<number> {
           process.stderr.write("error: `lore exclude --remove` requires a path\n\n" + USAGE);
           return 1;
         }
-        const db = openStore(dbPath);
+        const db = openStoreForWrite(dbPath);
+        if (!db) return 1;
         try {
           removeExclusion(db, project);
           process.stdout.write(renderExcludeRemoved(project));
@@ -583,7 +614,8 @@ export async function runCli(argv: string[]): Promise<number> {
           process.stderr.write("error: `lore exclude --project` requires a path\n\n" + USAGE);
           return 1;
         }
-        const db = openStore(dbPath);
+        const db = openStoreForWrite(dbPath);
+        if (!db) return 1;
         try {
           const preview = confirm
             ? executeExcludeProject(db, project)

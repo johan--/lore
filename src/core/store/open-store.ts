@@ -1,6 +1,11 @@
 import Database from "better-sqlite3";
 import { initSchema } from "./schema.js";
-import { runMigrations } from "./migrate.js";
+import {
+  getSchemaVersion,
+  runMigrations,
+  SCHEMA_VERSION,
+  StoreSchemaTooNewError,
+} from "./migrate.js";
 
 export type Store = Database.Database;
 
@@ -24,13 +29,23 @@ function applyReadTuning(db: Store): void {
  */
 export function openStore(path: string): Store {
   const db = new Database(path);
-  db.pragma("journal_mode = WAL");
-  db.pragma("busy_timeout = 5000");
-  db.pragma("foreign_keys = ON");
-  applyReadTuning(db);
-  initSchema(db);
-  runMigrations(db);
-  return db;
+  try {
+    const current = getSchemaVersion(db);
+    if (current > SCHEMA_VERSION) {
+      throw new StoreSchemaTooNewError(current, SCHEMA_VERSION);
+    }
+
+    db.pragma("journal_mode = WAL");
+    db.pragma("busy_timeout = 5000");
+    db.pragma("foreign_keys = ON");
+    applyReadTuning(db);
+    initSchema(db);
+    runMigrations(db);
+    return db;
+  } catch (err) {
+    db.close();
+    throw err;
+  }
 }
 
 /**

@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 import { Readable } from "node:stream";
 import { runCli } from "./lore.js";
 import { openStore } from "../core/store/open-store.js";
+import { SCHEMA_VERSION } from "../core/store/migrate.js";
 import { upsertSourceFile } from "../core/store/upsert.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { listTombstones } from "../core/store/tombstones.js";
@@ -227,6 +228,75 @@ describe("lore CLI", () => {
     expect(parsed.count).toBe(1);
     expect(parsed.hits[0].messageId).toBe("m1");
     expect(parsed.hits[0].source).toBe("codex");
+  });
+
+  it("`search` can read a compatible store from a newer Lore version", async () => {
+    const db = openStore(dbPath);
+    upsertSourceFile(db, {
+      sourceFileId: "sf-newer-read",
+      source: "codex",
+      sessionId: "sess-newer-read",
+      kind: "primary",
+      agentFile: null,
+      path: "/transcripts/sess-newer-read.jsonl",
+      byteOffset: 0,
+      lineCount: 1,
+      prefixSha256: null,
+      mtime: null,
+      resumeToken: null,
+      indexedAt: "2026-05-10T00:00:00.000Z",
+    });
+    db.prepare(
+      `INSERT INTO messages (message_id, source_file_id, session_id, uuid, seq, role, timestamp, project, branch, text, text_truncated)
+       VALUES ('m-newer-read', 'sf-newer-read', 'sess-newer-read', 'u1', 0, 'user', '2026-05-10T00:00:00.000Z', '/repo', 'main', 'newer readable alamo keyword', 0)`,
+    ).run();
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["search", "alamo", "--json"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    const parsed = JSON.parse(writes.join(""));
+    expect(parsed.hits.map((h: { messageId: string }) => h.messageId)).toContain("m-newer-read");
+  });
+
+  it("`index` refuses to write to a store from a newer Lore version", async () => {
+    const db = openStore(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const transcriptDir = join(dir, "transcripts");
+    await mkdir(transcriptDir);
+    await writeFile(
+      join(transcriptDir, "sess-newer-write.jsonl"),
+      JSON.stringify({
+        type: "user",
+        uuid: "u1",
+        parentUuid: null,
+        timestamp: "2026-05-10T00:00:00.000Z",
+        sessionId: "sess-newer-write",
+        cwd: "/repo",
+        gitBranch: "main",
+        message: { role: "user", content: "should not index" },
+      }) + "\n",
+    );
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["index", transcriptDir]);
+    spy.mockRestore();
+
+    expect(code).toBe(1);
+    expect(writes.join("")).toContain("Update Lore before running this write command");
   });
 
   it("`search <query> --session` narrows results through the CLI", async () => {
@@ -668,6 +738,21 @@ describe("lore CLI", () => {
     expect(JSON.parse(out).error).toBe("invalid_batch");
   });
 
+  it("`push` reports a newer_store envelope and non-zero for a newer store", async () => {
+    const db = openStore(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const { code, out } = await runWithStdin(["push"], JSON.stringify(VALID_PUSH_BATCH));
+    errSpy.mockRestore();
+
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out);
+    expect(parsed.error).toBe("newer_store");
+    expect(parsed.detail).toContain("Update Lore before running this write command");
+  });
+
   it("`setup --home <dir>` indexes detected sources and prints the registration guide", async () => {
     const projDir = join(dir, ".claude", "projects", "proj");
     await mkdir(projDir, { recursive: true });
@@ -967,6 +1052,28 @@ describe("lore forget / exclude CLI", () => {
     expect(code).toBe(0);
     const out = writes.join("");
     expect(out).toContain("/proj-list-excl");
+  });
+
+  it("`lore exclude --list` can read a compatible store from a newer Lore version", async () => {
+    openStore(dbPath2).close();
+    const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await runCli(["exclude", "--project", "/proj-list-newer", "--confirm"]);
+    errSpy.mockRestore();
+
+    const raw = new Database(dbPath2);
+    raw.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    raw.close();
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["exclude", "--list"]);
+    spy.mockRestore();
+
+    expect(code).toBe(0);
+    expect(writes.join("")).toContain("/proj-list-newer");
   });
 
   // ─── exclude --remove lifts a standing exclusion ─────────────────────────────
