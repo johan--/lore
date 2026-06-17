@@ -6,6 +6,18 @@ import type DatabaseType from "better-sqlite3";
  */
 export const SCHEMA_VERSION = 3;
 
+export class StoreSchemaTooNewError extends Error {
+  constructor(
+    readonly storeVersion: number,
+    readonly supportedVersion: number,
+  ) {
+    super(
+      `Lore store schema version ${storeVersion} is newer than this CLI supports (${supportedVersion})`,
+    );
+    this.name = "StoreSchemaTooNewError";
+  }
+}
+
 /**
  * Ordered migration steps. Each step's `to` is the schema version it produces,
  * and `up` performs the change. To evolve the schema later (for example, adding
@@ -59,6 +71,9 @@ export function getSchemaVersion(db: DatabaseType.Database): number {
  */
 export function runMigrations(db: DatabaseType.Database): void {
   const current = getSchemaVersion(db);
+  if (current > SCHEMA_VERSION) {
+    throw new StoreSchemaTooNewError(current, SCHEMA_VERSION);
+  }
   // An unstamped store (0) is already at the base version 1.
   let version = current === 0 ? 1 : current;
 

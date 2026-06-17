@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Store } from "../core/store/open-store.js";
+import { StoreSchemaTooNewError } from "../core/store/migrate.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { findRelevant } from "../core/search/find-relevant.js";
 import { getMessage } from "../core/retrieval/get-message.js";
@@ -20,15 +21,35 @@ const SERVER_NAME = "lore";
 const SERVER_VERSION = "0.1.0";
 const MAX_RESULTS_IN_RESPONSE = 20;
 
+export interface McpStoreAccess {
+  withReadStore<T>(read: (db: Store) => T): T;
+  withWriteStore<T>(write: (db: Store) => T): T;
+}
+
 function jsonContent(payload: unknown): { content: { type: "text"; text: string }[] } {
   return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+}
+
+function accessFromStore(db: Store): McpStoreAccess {
+  return {
+    withReadStore: (read) => read(db),
+    withWriteStore: (write) => write(db),
+  };
+}
+
+function writeError(err: unknown): { error: string; detail?: string } {
+  if (err instanceof StoreSchemaTooNewError) {
+    return { error: "newer_store", detail: "Update Lore before running this write command." };
+  }
+  return { error: "invalid_batch", detail: String(err) };
 }
 
 /**
  * Build the lore MCP server over an open store. Kept transport-agnostic so it
  * can be wired to stdio in production and to an in-memory transport in tests.
  */
-export function createLoreServer(db: Store): McpServer {
+export function createLoreServer(access: Store | McpStoreAccess): McpServer {
+  const stores = "withReadStore" in access ? access : accessFromStore(access);
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
   server.registerTool(
@@ -75,20 +96,24 @@ export function createLoreServer(db: Store): McpServer {
       until,
       limit,
     }) => {
-      const hits = searchMemory(db, query, {
-        project,
-        branch,
-        session,
-        source,
-        agent,
-        skill,
-        tool,
-        role,
-        model,
-        since,
-        until,
-        limit: limit ?? MAX_RESULTS_IN_RESPONSE,
-      }).map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
+      const hits = stores
+        .withReadStore((db) =>
+          searchMemory(db, query, {
+            project,
+            branch,
+            session,
+            source,
+            agent,
+            skill,
+            tool,
+            role,
+            model,
+            since,
+            until,
+            limit: limit ?? MAX_RESULTS_IN_RESPONSE,
+          }),
+        )
+        .map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
       return jsonContent({ count: hits.length, hits });
     },
   );
@@ -105,7 +130,9 @@ export function createLoreServer(db: Store): McpServer {
       },
     },
     async ({ message_id, full }) => {
-      const detail = getMessage(db, message_id, { full: full ?? false });
+      const detail = stores.withReadStore((db) =>
+        getMessage(db, message_id, { full: full ?? false }),
+      );
       if (!detail) return jsonContent({ error: "not_found", message_id });
       return jsonContent(detail);
     },
@@ -124,7 +151,7 @@ export function createLoreServer(db: Store): McpServer {
       },
     },
     async ({ message_id, before, after }) => {
-      const ctx = getContext(db, message_id, { before, after });
+      const ctx = stores.withReadStore((db) => getContext(db, message_id, { before, after }));
       if (!ctx) return jsonContent({ error: "not_found", message_id });
       return jsonContent(ctx);
     },
@@ -148,9 +175,8 @@ export function createLoreServer(db: Store): McpServer {
           .describe("Max messages per page (default 30, hard-capped at 40). Page with the cursor."),
       },
     },
-    async ({ session_id, cursor, limit }) => {
-      return jsonContent(getSession(db, session_id, { cursor, limit }));
-    },
+    async ({ session_id, cursor, limit }) =>
+      jsonContent(stores.withReadStore((db) => getSession(db, session_id, { cursor, limit }))),
   );
 
   server.registerTool(
@@ -168,7 +194,9 @@ export function createLoreServer(db: Store): McpServer {
       },
     },
     async ({ project, source, since, until, limit }) => {
-      const sessions = listSessions(db, { project, source, since, until, limit });
+      const sessions = stores.withReadStore((db) =>
+        listSessions(db, { project, source, since, until, limit }),
+      );
       return jsonContent({ count: sessions.length, sessions });
     },
   );
@@ -188,7 +216,9 @@ export function createLoreServer(db: Store): McpServer {
       },
     },
     async ({ project, source, since, until, bucket }) => {
-      const buckets = timeline(db, { project, source, since, until, bucket });
+      const buckets = stores.withReadStore((db) =>
+        timeline(db, { project, source, since, until, bucket }),
+      );
       return jsonContent({ buckets });
     },
   );
@@ -234,20 +264,24 @@ export function createLoreServer(db: Store): McpServer {
       until,
       limit,
     }) => {
-      const hits = findRelevant(db, query, {
-        project,
-        branch,
-        session,
-        source,
-        agent,
-        skill,
-        tool,
-        role,
-        model,
-        since,
-        until,
-        limit: limit ?? MAX_RESULTS_IN_RESPONSE,
-      }).map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
+      const hits = stores
+        .withReadStore((db) =>
+          findRelevant(db, query, {
+            project,
+            branch,
+            session,
+            source,
+            agent,
+            skill,
+            tool,
+            role,
+            model,
+            since,
+            until,
+            limit: limit ?? MAX_RESULTS_IN_RESPONSE,
+          }),
+        )
+        .map((hit) => ({ ...hit, text: elide(hit.text, hit.messageId) }));
       return jsonContent({ count: hits.length, hits });
     },
   );
@@ -274,10 +308,12 @@ export function createLoreServer(db: Store): McpServer {
     },
     async ({ sourceFile, messages, toolCalls }) => {
       try {
-        const result = pushRecords(db, { sourceFile, messages, toolCalls: toolCalls ?? [] });
+        const result = stores.withWriteStore((db) =>
+          pushRecords(db, { sourceFile, messages, toolCalls: toolCalls ?? [] }),
+        );
         return jsonContent(result);
       } catch (err) {
-        return jsonContent({ error: "invalid_batch", detail: String(err) });
+        return jsonContent(writeError(err));
       }
     },
   );

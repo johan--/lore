@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createLoreServer } from "./server.js";
-import { openStore } from "../core/store/open-store.js";
+import { openStore, openStoreReadonly } from "../core/store/open-store.js";
+import { SCHEMA_VERSION } from "../core/store/migrate.js";
 import { upsertMessage } from "../core/store/upsert.js";
 import type { MessageRecord } from "../core/records.js";
 
@@ -31,6 +35,31 @@ async function connectedClient(setup: (db: ReturnType<typeof openStore>) => void
   const db = openStore(":memory:");
   setup(db);
   const server = createLoreServer(db);
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  return client;
+}
+
+async function connectedFileClient(path: string): Promise<Client> {
+  const server = createLoreServer({
+    withReadStore: (read) => {
+      const db = openStoreReadonly(path);
+      try {
+        return read(db);
+      } finally {
+        db.close();
+      }
+    },
+    withWriteStore: (write) => {
+      const db = openStore(path);
+      try {
+        return write(db);
+      } finally {
+        db.close();
+      }
+    },
+  });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -125,6 +154,87 @@ describe("lore MCP server", () => {
     expect(payload.hits[0]?.messageId).toBe("m1");
     expect(payload.hits[0]?.sessionId).toBe("sess-1");
     expect(payload.hits[0]?.project).toBe("/repo");
+  });
+
+  it("search_memory can read a compatible store from a newer Lore version", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lore-mcp-newer-"));
+    const path = join(dir, "lore.db");
+    try {
+      const db = openStore(path);
+      upsertMessage(db, msg({ messageId: "m-newer", text: "remember newer alamo" }));
+      db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+      db.close();
+
+      const client = await connectedFileClient(path);
+      const result = await client.callTool({
+        name: "search_memory",
+        arguments: { query: "alamo" },
+      });
+      const payload = JSON.parse(firstText(result as never)) as {
+        count: number;
+        hits: { messageId: string }[];
+      };
+      expect(payload.count).toBe(1);
+      expect(payload.hits[0]?.messageId).toBe("m-newer");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("push refuses to write to a store from a newer Lore version", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lore-mcp-newer-"));
+    const path = join(dir, "lore.db");
+    try {
+      const db = openStore(path);
+      db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+      db.close();
+
+      const client = await connectedFileClient(path);
+      const result = await client.callTool({
+        name: "push",
+        arguments: {
+          sourceFile: {
+            sourceFileId: "sf-newer-push",
+            source: "codex",
+            sessionId: "sess-newer-push",
+            kind: "primary",
+            agentFile: null,
+            path: "/transcripts/newer.jsonl",
+            byteOffset: 0,
+            lineCount: 1,
+            prefixSha256: null,
+            mtime: null,
+            resumeToken: null,
+            indexedAt: "2026-05-10T00:00:00.000Z",
+          },
+          messages: [
+            {
+              messageId: "m-newer-push",
+              sourceFileId: "sf-newer-push",
+              sessionId: "sess-newer-push",
+              uuid: "u1",
+              parentUuid: null,
+              seq: 0,
+              role: "user",
+              timestamp: "2026-05-10T00:00:00.000Z",
+              project: "/repo",
+              branch: "main",
+              model: null,
+              agent: null,
+              skill: null,
+              text: "should not write",
+              textTruncated: false,
+            },
+          ],
+          toolCalls: [],
+        },
+      });
+      const payload = JSON.parse(firstText(result as never)) as { error: string; detail: string };
+      expect(payload.error).toBe("newer_store");
+      expect(payload.detail).toContain("Update Lore before running this write command");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("search_memory honors a dimension filter passed over the wire", async () => {
