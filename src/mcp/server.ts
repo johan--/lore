@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Store } from "../core/store/open-store.js";
-import { StoreSchemaTooNewError } from "../core/store/migrate.js";
+import { getSchemaVersion, SCHEMA_VERSION, StoreSchemaTooNewError } from "../core/store/migrate.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { findRelevant } from "../core/search/find-relevant.js";
 import { getMessage } from "../core/retrieval/get-message.js";
@@ -33,7 +33,13 @@ function jsonContent(payload: unknown): { content: { type: "text"; text: string 
 function accessFromStore(db: Store): McpStoreAccess {
   return {
     withReadStore: (read) => read(db),
-    withWriteStore: (write) => write(db),
+    withWriteStore: (write) => {
+      const current = getSchemaVersion(db);
+      if (current > SCHEMA_VERSION) {
+        throw new StoreSchemaTooNewError(current, SCHEMA_VERSION);
+      }
+      return write(db);
+    },
   };
 }
 

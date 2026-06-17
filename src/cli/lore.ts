@@ -160,6 +160,10 @@ function newerStoreForWrite(): void {
   );
 }
 
+function newerStoreError(): { error: "newer_store"; detail: string } {
+  return { error: "newer_store", detail: "Update Lore before running this write command." };
+}
+
 function openStoreForWrite(dbPath: string): Store | null {
   try {
     return openStore(dbPath);
@@ -505,7 +509,10 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       const db = openStoreForWrite(resolveDbPath());
-      if (!db) return 1;
+      if (!db) {
+        process.stdout.write(JSON.stringify(newerStoreError(), null, 2) + "\n");
+        return 1;
+      }
       try {
         const result = pushRecords(db, parsed);
         process.stdout.write(JSON.stringify(result, null, 2) + "\n");

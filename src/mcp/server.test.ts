@@ -237,6 +237,56 @@ describe("lore MCP server", () => {
     }
   });
 
+  it("push refuses a newer store when using the legacy single-store server adapter", async () => {
+    const client = await connectedClient((db) => {
+      db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    });
+
+    const result = await client.callTool({
+      name: "push",
+      arguments: {
+        sourceFile: {
+          sourceFileId: "sf-newer-legacy-push",
+          source: "codex",
+          sessionId: "sess-newer-legacy-push",
+          kind: "primary",
+          agentFile: null,
+          path: "/transcripts/newer-legacy.jsonl",
+          byteOffset: 0,
+          lineCount: 1,
+          prefixSha256: null,
+          mtime: null,
+          resumeToken: null,
+          indexedAt: "2026-05-10T00:00:00.000Z",
+        },
+        messages: [
+          {
+            messageId: "m-newer-legacy-push",
+            sourceFileId: "sf-newer-legacy-push",
+            sessionId: "sess-newer-legacy-push",
+            uuid: "u1",
+            parentUuid: null,
+            seq: 0,
+            role: "user",
+            timestamp: "2026-05-10T00:00:00.000Z",
+            project: "/repo",
+            branch: "main",
+            model: null,
+            agent: null,
+            skill: null,
+            text: "should not write",
+            textTruncated: false,
+          },
+        ],
+        toolCalls: [],
+      },
+    });
+
+    const payload = JSON.parse(firstText(result as never)) as { error: string; detail: string };
+    expect(payload.error).toBe("newer_store");
+    expect(payload.detail).toContain("Update Lore before running this write command");
+  });
+
   it("search_memory honors a dimension filter passed over the wire", async () => {
     const client = await connectedClient((db) => {
       upsertMessage(

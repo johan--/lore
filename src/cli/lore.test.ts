@@ -738,6 +738,21 @@ describe("lore CLI", () => {
     expect(JSON.parse(out).error).toBe("invalid_batch");
   });
 
+  it("`push` reports a newer_store envelope and non-zero for a newer store", async () => {
+    const db = openStore(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const { code, out } = await runWithStdin(["push"], JSON.stringify(VALID_PUSH_BATCH));
+    errSpy.mockRestore();
+
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out);
+    expect(parsed.error).toBe("newer_store");
+    expect(parsed.detail).toContain("Update Lore before running this write command");
+  });
+
   it("`setup --home <dir>` indexes detected sources and prints the registration guide", async () => {
     const projDir = join(dir, ".claude", "projects", "proj");
     await mkdir(projDir, { recursive: true });
