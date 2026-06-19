@@ -1,0 +1,46 @@
+{
+  "skill_name": "lore-brief",
+  "evals": [
+    {
+      "id": "default-last-24-hours",
+      "prompt": "Make a Lore brief with no explicit dates using pinned now 2026-06-19T16:00:00.000Z.",
+      "expected_output": "Uses 2026-06-18T16:00:00.000Z through 2026-06-19T16:00:00.000Z retrieval bounds and local date label.",
+      "assertions": [
+        {
+          "id": "pinned-window",
+          "text": "Default window is exactly last 24 hours from pinned now."
+        }
+      ]
+    },
+    {
+      "id": "proposal-only",
+      "prompt": "Create a daily brief and propose jobs/skills/issues if useful.",
+      "expected_output": "Proposes objects with sideEffects:false and does not create anything.",
+      "assertions": [
+        {
+          "id": "no-write",
+          "text": "No jobs, issues, wiki pages, tasks, memory cards, code, or automations are created."
+        }
+      ]
+    },
+    {
+      "id": "contradiction-candidate",
+      "prompt": "Brief a day containing conflicting evidence.",
+      "expected_output": "Preserves both sides of contradiction with evidence ids and unresolved status.",
+      "assertions": [
+        { "id": "both-sides", "text": "Contradiction candidate includes sideA and sideB evidence." }
+      ]
+    },
+    {
+      "id": "memory-card-candidates",
+      "prompt": "Brief a day with decisions, claims, commitments, artifacts, contradictions, and open questions.",
+      "expected_output": "Surfaces memory-card candidates by kind without writing them.",
+      "assertions": [
+        {
+          "id": "candidate-kinds",
+          "text": "Includes decision, claim, commitment, artifact, contradiction, and open_question kinds when evidenced."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "sideEffects": false,
+  "window": {
+    "fromIso": "2026-06-18T16:00:00.000Z",
+    "toIso": "2026-06-19T16:00:00.000Z",
+    "timeZone": "America/Los_Angeles",
+    "localDateLabel": "June 19, 2026"
+  },
+  "openWork": [
+    {
+      "text": "Brief skill still needed proposal vocabulary.",
+      "evidenceIds": ["m-synthetic-2"]
+    }
+  ],
+  "learnedSignals": [
+    {
+      "text": "Agents need structured no-write signals.",
+      "evidenceIds": ["m-synthetic-3"]
+    }
+  ],
+  "proposals": [
+    {
+      "kind": "skill",
+      "title": "Add lore-brief skill",
+      "evidenceIds": ["m-synthetic-3"],
+      "sideEffects": false,
+      "rationale": "Daily continuity needs proposal-only synthesis.",
+      "risk": "Low",
+      "nextAction": "Ask user before doing anything."
+    }
+  ],
+  "memoryCardCandidates": [
+    {
+      "kind": "decision",
+      "evidenceIds": ["m-synthetic-4"],
+      "title": "Briefs propose only; they do not mutate.",
+      "rationale": "Briefs propose only; they do not mutate."
+    },
+    {
+      "kind": "open-question",
+      "evidenceIds": ["m-synthetic-5"],
+      "title": "Should cron invoke this daily?",
+      "rationale": "Should cron invoke this daily?"
+    },
+    {
+      "kind": "claim",
+      "title": "Briefs default to last 24 hours",
+      "rationale": "Default window is rolling 24h.",
+      "evidenceIds": ["m-synthetic-6"]
+    },
+    {
+      "kind": "commitment",
+      "title": "No writes from scheduled briefs",
+      "rationale": "Briefs are read-only.",
+      "evidenceIds": ["m-synthetic-7"]
+    },
+    {
+      "kind": "artifact",
+      "title": "skills/lore-brief/SKILL.md",
+      "rationale": "Brief skill artifact exists.",
+      "evidenceIds": ["m-synthetic-8"]
+    },
+    {
+      "kind": "contradiction",
+      "title": "Brief scheduling preference conflict",
+      "rationale": "Two evidence sides disagree on cron vs manual skill first.",
+      "evidenceIds": ["m-a", "m-b"]
+    }
+  ],
+  "contradictionCandidates": [
+    {
+      "title": "Brief scheduling preference",
+      "sideA": {
+        "claim": "Use daily cron.",
+        "evidenceIds": ["m-a"]
+      },
+      "sideB": {
+        "claim": "Use manual skill first.",
+        "evidenceIds": ["m-b"]
+      },
+      "resolution": "unresolved"
+    }
+  ],
+  "gaps": [],
+  "generatedAtIso": "2026-06-19T16:00:00.000Z",
+  "completedActivity": [
+    {
+      "title": "UPD-001 status work landed.",
+      "evidenceIds": ["m-synthetic-1"]
+    }
+  ],
+  "changes": [
+    {
+      "title": "UPD-002 owns shared proposal vocabulary",
+      "evidenceIds": ["m-synthetic-3"]
+    }
+  ]
+}
