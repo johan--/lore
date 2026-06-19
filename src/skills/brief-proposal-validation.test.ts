@@ -143,7 +143,7 @@ function goodBrief(): unknown {
         evidenceIds: ["msg_status_done", "issue_upd_002"],
       },
       {
-        kind: "open-question",
+        kind: "open_question",
         title: "Which proposals should be promoted after the user approves follow-up?",
         rationale:
           "The brief may propose follow-up objects but cannot perform those actions itself.",
@@ -211,6 +211,22 @@ describe("brief proposal validation", () => {
       expectIssue(report, "proposal-only-violation", expectedFragment);
     },
   );
+
+  it("rejects proposal objects missing required fields", async () => {
+    const { validateBriefProposalOnly } = await loadBriefProposalValidationModule();
+    const brief = {
+      ...(goodBrief() as Record<string, unknown>),
+      proposals: [{ kind: "skill", evidenceIds: ["issue_upd_002"] }],
+    };
+
+    const report = validateBriefProposalOnly(brief);
+
+    expect(report.ok).toBe(false);
+    expectIssue(report, "invalid-proposal", "title");
+    expectIssue(report, "invalid-proposal", "rationale");
+    expectIssue(report, "invalid-proposal", "risk");
+    expectIssue(report, "invalid-proposal", "nextAction");
+  });
 
   it("rejects a contradiction candidate that is missing evidence for one side", async () => {
     const { validateBriefProposalOnly } = await loadBriefProposalValidationModule();

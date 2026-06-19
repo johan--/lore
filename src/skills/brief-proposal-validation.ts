@@ -34,7 +34,7 @@ const REQUIRED_MEMORY_KINDS = [
   "commitment",
   "artifact",
   "contradiction",
-  "open-question",
+  "open_question",
 ];
 
 export function getDefaultBriefWindow(options: { now: Date; timeZone: string }): BriefWindow {
@@ -106,8 +106,10 @@ function validateProposals(value: unknown, issues: ValidationIssue[]): void {
       issues.push(issue("invalid-proposal", "Proposal must be object", path));
       return;
     }
-    if (typeof proposal.kind !== "string" || proposal.kind.trim().length === 0) {
-      issues.push(issue("invalid-proposal", "Proposal must include kind", path));
+    for (const field of ["kind", "title", "rationale", "risk", "nextAction"]) {
+      if (typeof proposal[field] !== "string" || proposal[field].trim().length === 0) {
+        issues.push(issue("invalid-proposal", `Proposal must include ${field}`, path));
+      }
     }
     validateEvidenceIds(proposal.evidenceIds, path, issues, "missing-proposal-evidence");
   });

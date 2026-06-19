@@ -37,7 +37,7 @@
       "rationale": "Briefs propose only; they do not mutate."
     },
     {
-      "kind": "open-question",
+      "kind": "open_question",
       "evidenceIds": ["m-synthetic-5"],
       "title": "Should cron invoke this daily?",
       "rationale": "Should cron invoke this daily?"
