@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const workflowSkills = [
   {
@@ -45,6 +46,9 @@ const requiredReportHeadings = [
 
 const repoRoot = process.cwd();
 const tempDir = mkdtempSync(join(tmpdir(), "lore-package-smoke-"));
+const { renderValidationReport, validateWorkflowSkillPackage } = await import(
+  pathToFileURL(join(repoRoot, "dist/skills/workflow-skill-validation.js")).href
+);
 let tarball;
 try {
   const dryRun = run("npm", ["pack", "--dry-run", "--json"], repoRoot);
@@ -59,7 +63,7 @@ try {
   run("tar", ["-xzf", tarball, "-C", tempDir], repoRoot);
   const packageRoot = join(tempDir, "package");
   symlinkSync(resolve(repoRoot, "node_modules"), join(packageRoot, "node_modules"), "dir");
-  validatePackagedTree(packageRoot);
+  await validatePackagedTree(packageRoot);
 
   const help = run("node", [join(packageRoot, "dist/cli/lore.js"), "help"], repoRoot).stdout;
   validateHelp(help);
@@ -122,7 +126,7 @@ function validatePackMetadata(meta, label) {
   }
 }
 
-function validatePackagedTree(packageRoot) {
+async function validatePackagedTree(packageRoot) {
   for (const skill of workflowSkills) {
     const skillRoot = join(packageRoot, skill.folder);
     for (const required of requiredBundlePaths) {
@@ -138,6 +142,14 @@ function validatePackagedTree(packageRoot) {
     const skillMarkdown = readRequired(join(skillRoot, "SKILL.md"), `${skill.folder}/SKILL.md`);
     assert(skillMarkdown.includes("description:"), `${skill.folder}/SKILL.md missing description`);
   }
+
+  const validationReport = await validateWorkflowSkillPackage(join(packageRoot, "skills"), {
+    requiredSkills: workflowSkills.map((skill) => skill.folder.replace(/^skills\//, "")),
+  });
+  assert(
+    validationReport.ok,
+    `packaged workflow skill validation failed\n${renderValidationReport(validationReport)}`,
+  );
 }
 
 function readRequired(path, label) {

@@ -8,7 +8,7 @@ Use this when the user wants a continuity brief, daily recap, or proposal-only s
 
 ## Workflow
 
-1. Compute retrieval bounds: local date label for humans, explicit ISO `since`/`until` for Lore commands.
+1. Compute retrieval bounds: local date label for humans, explicit ISO `fromIso`/`toIso` values for output and `--since`/`--until` values for Lore commands.
 2. Run `lore status --json --since <iso> --until <iso>` and stop on unhealthy status. If status is `possibly_unsynced` and `schemaVersion` is greater than `supportedSchemaVersion`, do not recommend bare `lore sync` as sufficient; say Lore must be updated before write/sync recovery can refresh the window.
 3. Use `lore-recall` evidence packet rules for searches and citations.
 4. Produce a brief with `sideEffects: false`.
@@ -16,14 +16,15 @@ Use this when the user wants a continuity brief, daily recap, or proposal-only s
 
 ## Output Sections
 
-- `window`: `since`, `until`, `timezone`, `localLabel`.
-- `whatHappened`: evidence-backed bullets.
+- `window`: `fromIso`, `toIso`, `timeZone`, `localDateLabel`.
+- `completedActivity`: evidence-backed work that finished in the window.
 - `openWork`: unresolved work with cited ids or marked uncited.
+- `changes`: evidence-backed changes to code, docs, skills, workflow, setup, or state.
 - `learnedSignals`: things discovered while briefing.
 - `proposals`: read-only suggestions using `references/proposal-vocabulary.md`.
 - `memoryCardCandidates`: decision, claim, commitment, artifact, contradiction, open_question.
 - `contradictionCandidates`: both sides with evidence, no averaging.
-- `gaps`: what Lore could not prove.
+- `gaps`: optional notes for what Lore could not prove.
 
 ## Rules
 

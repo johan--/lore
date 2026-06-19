@@ -13,7 +13,6 @@ export type LoreStatusState =
   | "missing_store"
   | "empty_store"
   | "unreadable_store"
-  | "newer_store"
   | "stale_schema"
   | "source_absent"
   | "possibly_unsynced";

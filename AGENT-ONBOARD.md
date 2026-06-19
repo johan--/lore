@@ -250,9 +250,9 @@ break. Two fixes:
   `command = "node"`, `args = ["/abs/path/dist/cli/lore.js", "serve"]`.
 
 
-### `lore status` says `newer_store`, but search works
+### `lore status` is ready, but schemaVersion is newer
 
-Read-only retrieval is allowed to use a newer-but-compatible store when the required tables are present. Run `npm run build` in the source checkout or reinstall the current package, then retry `lore status --json`. A healthy read-compatible store should report `status: "ready"` with the true `schemaVersion`, even if `supportedSchemaVersion` is lower. Write paths still refuse unknown newer stores.
+Read-only retrieval is allowed to use a newer-but-compatible store when the required tables are present. A healthy read-compatible store can report `status: "ready"` with the true `schemaVersion`, even if `supportedSchemaVersion` is lower. Run `npm run build` in the source checkout or reinstall the current package before write recovery; write paths still refuse unknown newer stores with a `newer_store` error.
 
 ### Package or skill smoke for contributors
 

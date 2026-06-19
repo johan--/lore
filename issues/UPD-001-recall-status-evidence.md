@@ -16,11 +16,11 @@ The recall skill should use the existing low-level Lore skill as the substrate r
 
 ## Acceptance criteria
 
-- [ ] A read-only health/status command returns a structured JSON envelope for ready, missing store, empty store, unreadable store, newer store, stale schema, source absent, project absent, and possibly unsynced states.
+- [ ] A read-only health/status command returns a structured JSON envelope for ready, missing store, empty store, unreadable store, stale schema, source absent, and possibly unsynced states. A newer-but-readable store may still be `ready` with `schemaVersion > supportedSchemaVersion`; write paths return `newer_store` when this build cannot safely mutate the store.
 - [ ] `lore status --json` accepts explicit scoped inputs for states that require scope: `--source <name>`, `--project <path>`, `--since <iso>`, and `--until <iso>`.
 - [ ] The matching MCP read tool exposes equivalent optional parameters and returns the same status envelope for the same operation.
 - [ ] `source_absent` is returned only when a source filter is supplied and no indexed messages exist for that source.
-- [ ] `project_absent` is returned only when a project filter is supplied and no indexed messages exist for that project after any source filter is applied.
+- [ ] Project-filter misses are treated like search misses: `ready` with zero scoped messages, not a status failure.
 - [ ] `possibly_unsynced` is returned only when a scoped ready store has no indexed message/index timestamp inside a caller-provided active window, or when the relevant freshness metadata is unknown.
 - [ ] Search-specific misses remain `count: 0` / `no_matches` in evidence packets, not status failures.
 - [ ] Status and retrieval additions preserve bounded output and do not mutate the store.

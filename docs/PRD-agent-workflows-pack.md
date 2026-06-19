@@ -138,8 +138,9 @@ explicitly asks for that follow-up.
 31. As a coding agent, I want to know when the current session may not be indexed
    yet, so that I do not assume Lore is fully fresh.
 32. As a coding agent, I want retrieval health checks to distinguish missing
-   store, empty store, unreadable schema, too-new schema, no matching source, and
-   no matching query, so that recovery is actionable.
+   store, empty store, unreadable schema, stale schema, no matching source,
+   possibly-unsynced active windows, and no matching query, so that recovery is
+   actionable.
 33. As a maintainer, I want the workflow outputs to be testable with evals, so
    that future prompt edits do not regress behavior.
 34. As a maintainer, I want deterministic substrate changes covered by ordinary
@@ -294,9 +295,10 @@ when no freshness hook/sync evidence exists.
 During this PRD pass, the live `lore search` command returned an unreadable-store
 schema error. That is directly relevant to workflow reliability. The pack needs
 a structured retrieval-health concept that can distinguish missing store, empty
-store, unreadable store, too-new store, unsupported read surface, stale schema,
-missing source, no matching sessions, no matching query, and possibly-unsynced
-current session.
+store, unreadable store, stale schema, missing source, no matching query, and
+possibly-unsynced current-session windows. A newer-but-readable store is not a
+read-health failure; it is reported through `schemaVersion` /
+`supportedSchemaVersion`, while write recovery still refuses unsafe mutations.
 
 The concrete first-release contract is a read-only status surface:
 
@@ -309,10 +311,13 @@ The matching read-only MCP `status` tool accepts equivalent optional parameters:
 
 The unscoped status command reports global store readiness. Scoped failure states
 only apply when the corresponding scope is provided: `source_absent` requires a
-source filter; `project_absent` requires a project filter; `possibly_unsynced`
-requires a caller-provided active window (`since`/`until`) or missing freshness
-metadata for the scoped source/project. Search-specific misses remain `count: 0`
-/ `no_matches`, not status failures.
+source filter, while project-filter misses stay search-like as `ready` with zero
+scoped messages. `possibly_unsynced` requires a caller-provided active window
+(`since`/`until`) or missing freshness metadata for the scoped source/project.
+Search-specific misses remain `count: 0` / `no_matches`, not status failures.
+Read-only status follows the compatible-read policy: a newer-but-readable store
+can report `ready` with `schemaVersion > supportedSchemaVersion`; write paths
+still return `newer_store` when this build cannot safely mutate that store.
 
 The status envelope is:
 
@@ -347,10 +352,8 @@ type LoreStatus =
         | "missing_store"
         | "empty_store"
         | "unreadable_store"
-        | "newer_store"
         | "stale_schema"
         | "source_absent"
-        | "project_absent"
         | "possibly_unsynced";
       filters: {
         source?: string;
@@ -517,9 +520,11 @@ handoff-only vocabulary.
 
 **Retrieval-health tests.**
 Deterministic tests should cover `lore status --json` and MCP `status` parity for
-missing store, empty store, unreadable store, too-new store, stale schema, source
-absent, project absent, and ready store. Workflow eval specs should cover
-`no_matches` as a retrieval gap rather than a health failure.
+missing store, empty store, unreadable store, stale schema, source absent,
+possibly-unsynced windows, scoped project misses as zero-count ready status, and
+ready stores, including newer-but-readable stores whose write recovery is
+refused. Workflow eval specs should cover `no_matches` as a retrieval gap rather
+than a health failure.
 
 **Freshness metadata tests.**
 If retrieval surfaces add indexed-at or source freshness metadata, tests should
@@ -620,4 +625,3 @@ npm run package:smoke
 It builds the CLI, restores executable mode on `dist/cli/lore.js`, validates `npm pack --dry-run --json`, packs a real tarball, reads the workflow skills from the packaged tree, checks required test-report headings, and verifies packaged CLI help. This command is the durable proof that the workflow skills are shipped as bundles rather than loose prompt files.
 
 The issue DAG executed in dependency order: UPD-000 verification gate, UPD-001 recall/status/evidence, UPD-002 brief/proposal vocabulary, UPD-003 handoff continuation, and UPD-004 packaging/docs smoke. UPD-003 review fixes were applied after merge and merged again into integration before cleanup. UPD-004 additionally captured the live usability regression where `lore status` blocked on a newer-but-readable store even though `lore search` worked; read-only status now follows the read-compatibility policy while write paths continue to refuse unknown newer stores.
-
