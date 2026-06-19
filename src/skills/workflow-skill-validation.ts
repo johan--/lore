@@ -77,14 +77,82 @@ async function hasDirectoryEntries(path: string): Promise<boolean> {
   }
 }
 
-async function validateJsonFile(path: string): Promise<ValidationIssue[]> {
+async function parseJsonFile(
+  path: string,
+): Promise<{ value?: unknown; issues: ValidationIssue[] }> {
   try {
-    JSON.parse(await readFile(path, "utf8"));
-    return [];
+    return { value: JSON.parse(await readFile(path, "utf8")), issues: [] };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return [issue("invalid-json", `Expected valid JSON: ${detail}`, path)];
+    return { issues: [issue("invalid-json", `Expected valid JSON: ${detail}`, path)] };
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function validateEvalsFile(path: string): Promise<ValidationIssue[]> {
+  const parsed = await parseJsonFile(path);
+  if (parsed.issues.length > 0) return parsed.issues;
+
+  const issues: ValidationIssue[] = [];
+  if (!isRecord(parsed.value)) {
+    return [
+      issue("invalid-evals-schema", "evals.json must be an object with an evals array", path),
+    ];
+  }
+
+  if (!Array.isArray(parsed.value.evals) || parsed.value.evals.length === 0) {
+    issues.push(issue("invalid-evals-schema", "evals.json must include at least one eval", path));
+    return issues;
+  }
+
+  parsed.value.evals.forEach((evalCase, index) => {
+    const evalPath = `${path}#evals[${index}]`;
+    if (!isRecord(evalCase)) {
+      issues.push(issue("invalid-evals-schema", "Each eval must be an object", evalPath));
+      return;
+    }
+
+    for (const field of ["id", "prompt", "expected_output"]) {
+      if (typeof evalCase[field] !== "string" || evalCase[field].trim().length === 0) {
+        issues.push(
+          issue("invalid-evals-schema", `Eval must include non-empty ${field}`, evalPath),
+        );
+      }
+    }
+
+    if (!Array.isArray(evalCase.assertions) || evalCase.assertions.length === 0) {
+      issues.push(
+        issue("invalid-evals-schema", "Eval must include at least one assertion", evalPath),
+      );
+      return;
+    }
+
+    evalCase.assertions.forEach((assertion, assertionIndex) => {
+      const assertionPath = `${evalPath}.assertions[${assertionIndex}]`;
+      if (!isRecord(assertion)) {
+        issues.push(
+          issue("invalid-evals-schema", "Each assertion must be an object", assertionPath),
+        );
+        return;
+      }
+      for (const field of ["id", "text"]) {
+        if (typeof assertion[field] !== "string" || assertion[field].trim().length === 0) {
+          issues.push(
+            issue(
+              "invalid-evals-schema",
+              `Assertion must include non-empty ${field}`,
+              assertionPath,
+            ),
+          );
+        }
+      }
+    });
+  });
+
+  return issues;
 }
 
 function sectionPattern(heading: string): RegExp {
@@ -195,7 +263,7 @@ export async function validateWorkflowSkillBundle(skillDir: string): Promise<Val
 
   const evalsPath = join(skillDir, "evals", "evals.json");
   if (await pathExists(evalsPath)) {
-    issues.push(...(await validateJsonFile(evalsPath)));
+    issues.push(...(await validateEvalsFile(evalsPath)));
   }
 
   const reportPath = join(skillDir, "evals", "test-report.md");

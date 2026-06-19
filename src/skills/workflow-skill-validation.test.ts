@@ -186,6 +186,18 @@ describe("workflow skill validation", () => {
     expect(report.issues.filter((issue) => issue.severity !== "warning")).toEqual([]);
   });
 
+  it("fails a workflow skill bundle whose evals file has no eval cases", async () => {
+    const { validateWorkflowSkillBundle } = await loadValidationModule();
+    const skillDir = join(dir, "lore-recall");
+    await writeCompleteWorkflowSkill(skillDir);
+    await writeFile(join(skillDir, "evals", "evals.json"), "{}\n");
+
+    const report = await validateWorkflowSkillBundle(skillDir);
+
+    expect(report.ok).toBe(false);
+    expectIssue(report, "invalid-evals-schema", "at least one eval");
+  });
+
   it("fails a hollow placeholder test report even when the required headings exist", async () => {
     const { validateSkillTestReport } = await loadValidationModule();
     const reportPath = join(dir, "test-report.md");
