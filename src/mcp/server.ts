@@ -11,6 +11,7 @@ import { listSessions } from "../core/retrieval/list-sessions.js";
 import { timeline } from "../core/retrieval/timeline.js";
 import { elide } from "../core/budget.js";
 import { pushRecords } from "../core/ingest/push.js";
+import { readLoreStatus } from "../core/status.js";
 import {
   messageRecordSchema,
   sourceFileRecordSchema,
@@ -57,6 +58,24 @@ function writeError(err: unknown): { error: string; detail?: string } {
 export function createLoreServer(access: Store | McpStoreAccess): McpServer {
   const stores = "withReadStore" in access ? access : accessFromStore(access);
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+
+  server.registerTool(
+    "status",
+    {
+      description:
+        "Read-only Lore store health/status for agents before retrieval. Reports schema readiness, counts, sources, and scoped filters.",
+      inputSchema: {
+        source: z.string().optional().describe("Filter to a harness namespace."),
+        project: z.string().optional().describe("Filter to a project path (cwd)."),
+        since: z.string().optional().describe("Inclusive ISO-8601 lower bound on timestamp."),
+        until: z.string().optional().describe("Inclusive ISO-8601 upper bound on timestamp."),
+      },
+    },
+    async ({ source, project, since, until }) =>
+      jsonContent(
+        stores.withReadStore((db) => readLoreStatus(db, { source, project, since, until })),
+      ),
+  );
 
   server.registerTool(
     "search_memory",

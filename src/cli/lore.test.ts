@@ -10,6 +10,7 @@ import { SCHEMA_VERSION } from "../core/store/migrate.js";
 import { upsertSourceFile } from "../core/store/upsert.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { listTombstones } from "../core/store/tombstones.js";
+import { pushRecords } from "../core/ingest/push.js";
 
 /** Run `argv` with `input` piped on stdin, restoring the real stdin afterward. */
 async function runWithStdin(argv: string[], input: string): Promise<{ code: number; out: string }> {
@@ -29,6 +30,28 @@ async function runWithStdin(argv: string[], input: string): Promise<{ code: numb
   } finally {
     out.mockRestore();
     if (orig) Object.defineProperty(process, "stdin", orig);
+  }
+}
+
+async function runCaptured(
+  argv: string[],
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const out = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+    stdout.push(String(chunk));
+    return true;
+  });
+  const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+    stderr.push(String(chunk));
+    return true;
+  });
+  try {
+    const code = await runCli(argv);
+    return { code, stdout: stdout.join(""), stderr: stderr.join("") };
+  } finally {
+    out.mockRestore();
+    err.mockRestore();
   }
 }
 
@@ -67,6 +90,81 @@ const VALID_PUSH_BATCH = {
   ],
   toolCalls: [],
 };
+
+function seedStatusStore(): void {
+  const db = openStore(dbPath);
+  pushRecords(db, {
+    sourceFile: {
+      sourceFileId: "sf-status-claude",
+      source: "claude-code",
+      sessionId: "sess-status-claude",
+      kind: "primary",
+      agentFile: null,
+      path: "/transcripts/status-claude.jsonl",
+      byteOffset: 0,
+      lineCount: 1,
+      prefixSha256: null,
+      mtime: null,
+      indexedAt: "2026-05-10T12:05:00.000Z",
+    },
+    messages: [
+      {
+        messageId: "m-status-claude",
+        sourceFileId: "sf-status-claude",
+        sessionId: "sess-status-claude",
+        uuid: "u-status-claude",
+        parentUuid: null,
+        seq: 0,
+        role: "user",
+        timestamp: "2026-05-10T12:00:00.000Z",
+        project: "/repo",
+        branch: "main",
+        model: "gpt-5.5",
+        agent: null,
+        skill: null,
+        text: "status fixture for claude source",
+        textTruncated: false,
+      },
+    ],
+    toolCalls: [],
+  });
+  pushRecords(db, {
+    sourceFile: {
+      sourceFileId: "sf-status-codex",
+      source: "codex",
+      sessionId: "sess-status-codex",
+      kind: "primary",
+      agentFile: null,
+      path: "/transcripts/status-codex.jsonl",
+      byteOffset: 0,
+      lineCount: 1,
+      prefixSha256: null,
+      mtime: null,
+      indexedAt: "2026-05-11T08:15:00.000Z",
+    },
+    messages: [
+      {
+        messageId: "m-status-codex",
+        sourceFileId: "sf-status-codex",
+        sessionId: "sess-status-codex",
+        uuid: "u-status-codex",
+        parentUuid: null,
+        seq: 0,
+        role: "assistant",
+        timestamp: "2026-05-11T08:00:00.000Z",
+        project: "/other",
+        branch: "main",
+        model: "gpt-5.5",
+        agent: null,
+        skill: null,
+        text: "status fixture for codex source",
+        textTruncated: false,
+      },
+    ],
+    toolCalls: [],
+  });
+  db.close();
+}
 
 let dir: string;
 let dbPath: string;
@@ -424,6 +522,89 @@ describe("lore CLI", () => {
     expect(parsed.count).toBe(1);
     expect(parsed.sessions[0].sessionId).toBe("sess-b");
     expect(parsed.sessions[0].project).toBe("/repo-a");
+  });
+
+  it("`status --json` reports a scoped ready non-empty store", async () => {
+    seedStatusStore();
+
+    const result = await runCaptured([
+      "status",
+      "--json",
+      "--source",
+      "claude-code",
+      "--project",
+      "/repo",
+      "--since",
+      "2026-05-10T00:00:00.000Z",
+      "--until",
+      "2026-05-10T23:59:59.999Z",
+    ]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: true,
+      status: "ready",
+      filters: {
+        source: "claude-code",
+        project: "/repo",
+        since: "2026-05-10T00:00:00.000Z",
+        until: "2026-05-10T23:59:59.999Z",
+      },
+      storePath: dbPath,
+      schemaVersion: SCHEMA_VERSION,
+      supportedSchemaVersion: SCHEMA_VERSION,
+      messageCount: 1,
+      sessionCount: 1,
+      sources: [
+        {
+          source: "claude-code",
+          messageCount: 1,
+          sessionCount: 1,
+          latestMessageTimestamp: "2026-05-10T12:00:00.000Z",
+          latestIndexedAt: "2026-05-10T12:05:00.000Z",
+        },
+      ],
+      recovery: null,
+    });
+  });
+
+  it("`status --json --source <missing>` returns source_absent only for source-scoped misses", async () => {
+    seedStatusStore();
+
+    const result = await runCaptured(["status", "--json", "--source", "missing-source"]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed).toMatchObject({
+      ok: false,
+      status: "source_absent",
+      filters: { source: "missing-source" },
+      storePath: dbPath,
+      schemaVersion: SCHEMA_VERSION,
+      supportedSchemaVersion: SCHEMA_VERSION,
+      recovery: expect.any(String),
+    });
+    expect(parsed.recovery).toContain("missing-source");
+  });
+
+  it("`status --json --project <missing>` treats project misses as ready zero-count status", async () => {
+    seedStatusStore();
+
+    const result = await runCaptured(["status", "--json", "--project", "/missing"]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: true,
+      status: "ready",
+      filters: { project: "/missing" },
+      storePath: dbPath,
+      schemaVersion: SCHEMA_VERSION,
+      supportedSchemaVersion: SCHEMA_VERSION,
+      messageCount: 0,
+      sessionCount: 0,
+      sources: [],
+      recovery: null,
+    });
   });
 
   it("`sample <dir>` prints a format summary an onboarding agent can act on", async () => {
