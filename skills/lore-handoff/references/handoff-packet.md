@@ -5,9 +5,34 @@ Required sections:
 - `verified`: evidence-backed facts.
 - `open`: unresolved work.
 - `stale`: claims that may have drifted.
-- `risky`: assumptions, hazards, privacy concerns.
-- `artifacts`: files, branches, commits, issues.
+- `risky`: assumptions, hazards, and privacy concerns.
+- `artifacts`: files, branches, commits, issues, or runtime artifacts, each with `evidenceIds` or `uncited:true`.
 - `proposals`: shared proposal vocabulary from `skills/lore-brief/references/proposal-vocabulary.md`.
-- `nextActions`: recommended next steps.
+- `memoryCardCandidates`: shared memory-card candidate kinds from the proposal vocabulary: `decision`, `claim`, `commitment`, `artifact`, `contradiction`, and `open_question`.
+- `contradictionCandidates`: unresolved two-sided contradiction objects using the shared contradiction shape.
+- `nextActions`: recommended next steps, each with `evidenceIds` or `uncited:true`.
 
-Keep each section compact. If a claim lacks evidence, use `uncited:true` and explain why.
+Shared proposal objects must use this shape:
+
+```json
+{
+  "kind": "issue",
+  "title": "Run packaging smoke",
+  "why": "The package must prove skill inclusion before release.",
+  "evidenceIds": ["m-123"],
+  "sideEffects": false
+}
+```
+
+Contradiction candidates preserve both sides:
+
+```json
+{
+  "kind": "contradiction",
+  "sideA": { "claim": "The slice is merged.", "evidenceIds": ["m-a"] },
+  "sideB": { "claim": "Review found blockers.", "evidenceIds": ["m-b"] },
+  "status": "unresolved"
+}
+```
+
+Keep each section compact. If a claim lacks evidence, use `uncited:true` and explain why. Do not paste transcript chunks; cite message ids and ask the next agent to drill down with `lore context` or `lore session --around` when needed.
