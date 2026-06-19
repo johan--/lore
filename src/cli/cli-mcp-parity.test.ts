@@ -109,6 +109,28 @@ async function cliJson(argv: string[]): Promise<unknown> {
   }
 }
 
+/** Run a CLI command expected to succeed, keeping stderr in the assertion diff. */
+async function successfulCliJson(argv: string[]): Promise<unknown> {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const out = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+    stdout.push(String(chunk));
+    return true;
+  });
+  const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+    stderr.push(String(chunk));
+    return true;
+  });
+  try {
+    const code = await runCli(argv);
+    expect({ code, stderr: stderr.join("") }).toEqual({ code: 0, stderr: "" });
+    return JSON.parse(stdout.join(""));
+  } finally {
+    out.mockRestore();
+    err.mockRestore();
+  }
+}
+
 /** Run a CLI command with stdin and parse its single JSON stdout payload. */
 async function cliJsonStdin(argv: string[], input: string): Promise<unknown> {
   const writes: string[] = [];
@@ -147,6 +169,12 @@ async function mcpJson(name: string, args: Record<string, unknown>): Promise<unk
 }
 
 describe("CLI ⇄ MCP envelope parity", () => {
+  it("status: `lore status --json` == status", async () => {
+    const cli = await successfulCliJson(["status", "--json"]);
+    const mcp = await mcpJson("status", {});
+    expect(cli).toEqual(mcp);
+  });
+
   it("search_memory: `lore search --json` == search_memory", async () => {
     const cli = await cliJson(["search", "alamo", "--json"]);
     const mcp = await mcpJson("search_memory", { query: "alamo" });

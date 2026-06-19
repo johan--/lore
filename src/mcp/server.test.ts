@@ -84,6 +84,7 @@ describe("lore MCP server", () => {
       "list_sessions",
       "push",
       "search_memory",
+      "status",
       "timeline",
     ]);
   });

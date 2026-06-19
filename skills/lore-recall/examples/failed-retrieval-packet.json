@@ -1,0 +1,9 @@
+{
+  "question": "Why did we drop the zeta adapter?",
+  "status": { "status": "ready", "messageCount": 0, "filters": { "project": "/repo" } },
+  "plan": ["Search 'zeta adapter dropped'", "Search 'remove zeta ingestion'"],
+  "selectedEvidence": [],
+  "answer": "Lore did not provide evidence for this decision in the scoped store.",
+  "gaps": ["No matching messages for zeta adapter queries scoped to /repo."],
+  "nextQueries": ["Try without project scope", "Search current git history for zeta"]
+}
