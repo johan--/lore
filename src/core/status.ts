@@ -51,6 +51,8 @@ interface SourceRow {
   latest_indexed_at: string | null;
 }
 
+const MAX_STATUS_SOURCES = 20;
+
 export function statusFilters(options: LoreStatusOptions): LoreStatusOptions {
   const filters: LoreStatusOptions = {};
   if (options.source !== undefined) filters.source = options.source;
@@ -135,7 +137,7 @@ export function readLoreStatus(
 
   if (
     counts.message_count === 0 &&
-    options.since !== undefined &&
+    (options.since !== undefined || options.until !== undefined) &&
     hasMessagesOutsideWindow(db, options)
   ) {
     return {
@@ -265,9 +267,10 @@ function sourceSummaries(db: Store, options: LoreStatusOptions): LoreStatusSourc
        LEFT JOIN source_files sf ON sf.source_file_id = m.source_file_id
        ${where}
        GROUP BY sf.source
-       ORDER BY message_count DESC, source ASC`,
+       ORDER BY message_count DESC, source ASC
+       LIMIT ?`,
     )
-    .all(...params) as SourceRow[];
+    .all(...params, MAX_STATUS_SOURCES) as SourceRow[];
 
   return rows.map((row) => ({
     source: row.source,

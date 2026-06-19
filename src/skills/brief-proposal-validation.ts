@@ -149,11 +149,17 @@ function validateContradictions(value: unknown, issues: ValidationIssue[]): void
       issues.push(issue("invalid-contradiction", "Contradiction candidate must be object", path));
       return;
     }
+    if (candidate.status !== "unresolved") {
+      issues.push(issue("invalid-contradiction", "Contradiction status must be unresolved", path));
+    }
     for (const side of ["sideA", "sideB"]) {
       const sideValue = candidate[side];
       if (!isRecord(sideValue)) {
         issues.push(issue("missing-contradiction-evidence", `${side} missing`, `${path}.${side}`));
         continue;
+      }
+      if (typeof sideValue.claim !== "string" || sideValue.claim.trim().length === 0) {
+        issues.push(issue("invalid-contradiction", `${side} missing claim`, `${path}.${side}`));
       }
       validateEvidenceIds(
         sideValue.evidenceIds,

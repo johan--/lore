@@ -21,26 +21,29 @@ const INJECTED_BLOCKS = [
   "skill",
 ];
 
+const INJECTED_BLOCK_REGEXES = INJECTED_BLOCKS.map(
+  (tag) => new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, "gi"),
+);
+
 export const MIN_RECURRENCE_CHARS = 40;
 
-function stripInjectedBlocks(text: string): string {
-  let out = text;
-  for (const tag of INJECTED_BLOCKS) {
-    const block = new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, "gi");
+function stripInjectedBlocks(text: string | null | undefined): string {
+  let out = text ?? "";
+  for (const block of INJECTED_BLOCK_REGEXES) {
     out = out.replace(block, " ");
   }
   return out;
 }
 
-export function canonicalContent(text: string): string {
+export function canonicalContent(text: string | null | undefined): string {
   return stripInjectedBlocks(text).replace(/\s+/g, " ").trim();
 }
 
-export function isRecurrenceEligible(text: string): boolean {
+export function isRecurrenceEligible(text: string | null | undefined): boolean {
   return canonicalContent(text).length >= MIN_RECURRENCE_CHARS;
 }
 
-export function contentHash(text: string): string | null {
+export function contentHash(text: string | null | undefined): string | null {
   if (!isRecurrenceEligible(text)) return null;
   return createHash("sha256").update(canonicalContent(text)).digest("hex");
 }

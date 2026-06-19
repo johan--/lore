@@ -46,11 +46,14 @@ const requiredReportHeadings = [
 
 const repoRoot = process.cwd();
 const tempDir = mkdtempSync(join(tmpdir(), "lore-package-smoke-"));
-const { renderValidationReport, validateWorkflowSkillPackage } = await import(
-  pathToFileURL(join(repoRoot, "dist/skills/workflow-skill-validation.js")).href
-);
 let tarball;
+let renderValidationReport;
+let validateWorkflowSkillPackage;
 try {
+  ({ renderValidationReport, validateWorkflowSkillPackage } = await import(
+    pathToFileURL(join(repoRoot, "dist/skills/workflow-skill-validation.js")).href
+  ));
+
   const dryRun = run("npm", ["pack", "--dry-run", "--json"], repoRoot);
   const dryRunMeta = parsePackJson(dryRun.stdout, "dry-run");
   validatePackMetadata(dryRunMeta, "dry-run");

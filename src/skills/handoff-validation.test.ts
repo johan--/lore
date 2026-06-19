@@ -86,4 +86,34 @@ describe("handoff validation", () => {
     expect(report.ok).toBe(false);
     expect(report.issues.map((i) => i.code)).toContain("transcript-dump");
   });
+
+  it("rejects malformed evidenceIds elements", () => {
+    const packet = {
+      ...(goodPacket() as Record<string, unknown>),
+      open: [
+        { text: "Null evidence id", evidenceIds: [null] },
+        { text: "Empty evidence id", evidenceIds: [""] },
+      ],
+    };
+
+    const report = validateHandoffPacket(packet);
+
+    expect(report.ok).toBe(false);
+    expect(report.issues.filter((i) => i.code === "missing-evidence")).toHaveLength(2);
+  });
+
+  it("rejects unknown memory-card candidate kinds", () => {
+    const packet = {
+      ...(goodPacket() as Record<string, unknown>),
+      memoryCardCandidates: [
+        ...((goodPacket() as { memoryCardCandidates: unknown[] }).memoryCardCandidates ?? []),
+        { kind: "private_shape", title: "Do not allow private kinds", evidenceIds: ["m-15"] },
+      ],
+    };
+
+    const report = validateHandoffPacket(packet);
+
+    expect(report.ok).toBe(false);
+    expect(report.issues.map((i) => i.code)).toContain("invalid-memory-card-candidate");
+  });
 });

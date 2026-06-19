@@ -13,6 +13,13 @@ describe("canonicalContent", () => {
     const b = "Always   run npm run check before committing on this repo.\n<skill>ignored</skill>";
     expect(canonicalContent(a)).toBe(canonicalContent(b));
   });
+
+  it("treats nullish legacy text as empty content", () => {
+    expect(canonicalContent(null)).toBe("");
+    expect(canonicalContent(undefined)).toBe("");
+    expect(isRecurrenceEligible(null)).toBe(false);
+    expect(contentHash(undefined)).toBeNull();
+  });
 });
 
 describe("contentHash", () => {

@@ -76,7 +76,7 @@
         "claim": "Use manual skill first.",
         "evidenceIds": ["m-b"]
       },
-      "resolution": "unresolved"
+      "status": "unresolved"
     }
   ],
   "gaps": [],

@@ -186,6 +186,51 @@ describe("workflow skill validation", () => {
     expect(report.issues.filter((issue) => issue.severity !== "warning")).toEqual([]);
   });
 
+  it("requires skill frontmatter to start at the beginning of SKILL.md", async () => {
+    const { validateWorkflowSkillBundle } = await loadValidationModule();
+    const skillDir = join(dir, "lore-recall");
+    await writeCompleteWorkflowSkill(skillDir);
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      `# Lore Recall
+
+---
+name: lore-recall
+description: This body block must not count as skill frontmatter.
+---
+
+Use this fixture skill when tests need to reject displaced frontmatter.
+`,
+    );
+
+    const report = await validateWorkflowSkillBundle(skillDir);
+
+    expect(report.ok).toBe(false);
+    expectIssue(report, "missing-frontmatter", "YAML frontmatter");
+  });
+
+  it("does not accept a body description as frontmatter metadata", async () => {
+    const { validateWorkflowSkillBundle } = await loadValidationModule();
+    const skillDir = join(dir, "lore-recall");
+    await writeCompleteWorkflowSkill(skillDir);
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      `---
+name: lore-recall
+---
+
+# Lore Recall
+
+description: This body line must not satisfy the frontmatter description check.
+`,
+    );
+
+    const report = await validateWorkflowSkillBundle(skillDir);
+
+    expect(report.ok).toBe(false);
+    expectIssue(report, "missing-description", "description");
+  });
+
   it("fails a workflow skill bundle whose evals file has no eval cases", async () => {
     const { validateWorkflowSkillBundle } = await loadValidationModule();
     const skillDir = join(dir, "lore-recall");

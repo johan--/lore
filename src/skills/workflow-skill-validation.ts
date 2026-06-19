@@ -248,16 +248,29 @@ export async function validateWorkflowSkillBundle(skillDir: string): Promise<Val
 
   const skillPath = join(skillDir, "SKILL.md");
   if (await pathExists(skillPath)) {
-    const skillText = await readFile(skillPath, "utf8");
-    if (!/^---\s*\n[\s\S]*?\n---/m.test(skillText)) {
+    let skillText = "";
+    try {
+      skillText = await readFile(skillPath, "utf8");
+    } catch (error) {
       issues.push(
-        issue("missing-frontmatter", "SKILL.md must include YAML frontmatter", "SKILL.md"),
+        issue(
+          "unreadable-skill",
+          `Could not read SKILL.md: ${error instanceof Error ? error.message : String(error)}`,
+          "SKILL.md",
+        ),
       );
     }
-    if (!/^description:\s*.+/m.test(skillText)) {
-      issues.push(
-        issue("missing-description", "SKILL.md frontmatter must include description", "SKILL.md"),
-      );
+    if (skillText) {
+      const frontmatter = /^---\s*\n([\s\S]*?)\n---/.exec(skillText);
+      if (!frontmatter) {
+        issues.push(
+          issue("missing-frontmatter", "SKILL.md must include YAML frontmatter", "SKILL.md"),
+        );
+      } else if (!/^description:\s*.+/m.test(frontmatter[1] ?? "")) {
+        issues.push(
+          issue("missing-description", "SKILL.md frontmatter must include description", "SKILL.md"),
+        );
+      }
     }
   }
 

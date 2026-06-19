@@ -93,77 +93,80 @@ const VALID_PUSH_BATCH = {
 
 function seedStatusStore(): void {
   const db = openStore(dbPath);
-  pushRecords(db, {
-    sourceFile: {
-      sourceFileId: "sf-status-claude",
-      source: "claude-code",
-      sessionId: "sess-status-claude",
-      kind: "primary",
-      agentFile: null,
-      path: "/transcripts/status-claude.jsonl",
-      byteOffset: 0,
-      lineCount: 1,
-      prefixSha256: null,
-      mtime: null,
-      indexedAt: "2026-05-10T12:05:00.000Z",
-    },
-    messages: [
-      {
-        messageId: "m-status-claude",
+  try {
+    pushRecords(db, {
+      sourceFile: {
         sourceFileId: "sf-status-claude",
+        source: "claude-code",
         sessionId: "sess-status-claude",
-        uuid: "u-status-claude",
-        parentUuid: null,
-        seq: 0,
-        role: "user",
-        timestamp: "2026-05-10T12:00:00.000Z",
-        project: "/repo",
-        branch: "main",
-        model: "gpt-5.5",
-        agent: null,
-        skill: null,
-        text: "status fixture for claude source",
-        textTruncated: false,
+        kind: "primary",
+        agentFile: null,
+        path: "/transcripts/status-claude.jsonl",
+        byteOffset: 0,
+        lineCount: 1,
+        prefixSha256: null,
+        mtime: null,
+        indexedAt: "2026-05-10T12:05:00.000Z",
       },
-    ],
-    toolCalls: [],
-  });
-  pushRecords(db, {
-    sourceFile: {
-      sourceFileId: "sf-status-codex",
-      source: "codex",
-      sessionId: "sess-status-codex",
-      kind: "primary",
-      agentFile: null,
-      path: "/transcripts/status-codex.jsonl",
-      byteOffset: 0,
-      lineCount: 1,
-      prefixSha256: null,
-      mtime: null,
-      indexedAt: "2026-05-11T08:15:00.000Z",
-    },
-    messages: [
-      {
-        messageId: "m-status-codex",
+      messages: [
+        {
+          messageId: "m-status-claude",
+          sourceFileId: "sf-status-claude",
+          sessionId: "sess-status-claude",
+          uuid: "u-status-claude",
+          parentUuid: null,
+          seq: 0,
+          role: "user",
+          timestamp: "2026-05-10T12:00:00.000Z",
+          project: "/repo",
+          branch: "main",
+          model: "gpt-5.5",
+          agent: null,
+          skill: null,
+          text: "status fixture for claude source",
+          textTruncated: false,
+        },
+      ],
+      toolCalls: [],
+    });
+    pushRecords(db, {
+      sourceFile: {
         sourceFileId: "sf-status-codex",
+        source: "codex",
         sessionId: "sess-status-codex",
-        uuid: "u-status-codex",
-        parentUuid: null,
-        seq: 0,
-        role: "assistant",
-        timestamp: "2026-05-11T08:00:00.000Z",
-        project: "/other",
-        branch: "main",
-        model: "gpt-5.5",
-        agent: null,
-        skill: null,
-        text: "status fixture for codex source",
-        textTruncated: false,
+        kind: "primary",
+        agentFile: null,
+        path: "/transcripts/status-codex.jsonl",
+        byteOffset: 0,
+        lineCount: 1,
+        prefixSha256: null,
+        mtime: null,
+        indexedAt: "2026-05-11T08:15:00.000Z",
       },
-    ],
-    toolCalls: [],
-  });
-  db.close();
+      messages: [
+        {
+          messageId: "m-status-codex",
+          sourceFileId: "sf-status-codex",
+          sessionId: "sess-status-codex",
+          uuid: "u-status-codex",
+          parentUuid: null,
+          seq: 0,
+          role: "assistant",
+          timestamp: "2026-05-11T08:00:00.000Z",
+          project: "/other",
+          branch: "main",
+          model: "gpt-5.5",
+          agent: null,
+          skill: null,
+          text: "status fixture for codex source",
+          textTruncated: false,
+        },
+      ],
+      toolCalls: [],
+    });
+  } finally {
+    db.close();
+  }
 }
 
 let dir: string;
@@ -657,6 +660,80 @@ describe("lore CLI", () => {
       ],
       recovery: expect.stringContaining("sync"),
     });
+  });
+
+  it("`status --json --until <old>` treats until-only bounds as an active freshness window", async () => {
+    seedStatusStore();
+
+    const result = await runCaptured([
+      "status",
+      "--json",
+      "--project",
+      "/repo",
+      "--until",
+      "2026-01-01T00:00:00.000Z",
+    ]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      status: "possibly_unsynced",
+      filters: { project: "/repo", until: "2026-01-01T00:00:00.000Z" },
+      messageCount: 0,
+      sessionCount: 0,
+      recovery: expect.stringContaining("sync"),
+    });
+  });
+
+  it("`status --json` bounds source summaries", async () => {
+    const db = openStore(dbPath);
+    try {
+      for (let i = 0; i < 25; i += 1) {
+        pushRecords(db, {
+          sourceFile: {
+            sourceFileId: `sf-status-source-${i}`,
+            source: `status-source-${i}`,
+            sessionId: `sess-status-source-${i}`,
+            kind: "primary",
+            agentFile: null,
+            path: `/transcripts/status-source-${i}.jsonl`,
+            byteOffset: 0,
+            lineCount: 1,
+            prefixSha256: null,
+            mtime: null,
+            indexedAt: `2026-05-10T00:${String(i).padStart(2, "0")}:00.000Z`,
+          },
+          messages: [
+            {
+              messageId: `m-status-source-${i}`,
+              sourceFileId: `sf-status-source-${i}`,
+              sessionId: `sess-status-source-${i}`,
+              uuid: `u-status-source-${i}`,
+              parentUuid: null,
+              seq: 0,
+              role: "user",
+              timestamp: `2026-05-10T00:${String(i).padStart(2, "0")}:00.000Z`,
+              project: "/repo",
+              branch: "main",
+              model: null,
+              agent: null,
+              skill: null,
+              text: `bounded source summary fixture ${i}`,
+              textTruncated: false,
+            },
+          ],
+          toolCalls: [],
+        });
+      }
+    } finally {
+      db.close();
+    }
+
+    const result = await runCaptured(["status", "--json"]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.sources).toHaveLength(20);
   });
 
   it("`status --json --since <recent>` does not recommend sync when newer store blocks writes", async () => {

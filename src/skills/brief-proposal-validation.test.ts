@@ -157,7 +157,7 @@ function goodBrief(): unknown {
           claim: "The issue still lists the brief skill and checker as incomplete.",
           evidenceIds: ["issue_upd_002"],
         },
-        resolution: "unresolved",
+        status: "unresolved",
       },
     ],
   };
@@ -237,7 +237,7 @@ describe("brief proposal validation", () => {
             claim: "The issue still lists the brief skill and checker as incomplete.",
             evidenceIds: [],
           },
-          resolution: "unresolved",
+          status: "unresolved",
         },
       ],
     };
@@ -246,6 +246,27 @@ describe("brief proposal validation", () => {
 
     expect(report.ok).toBe(false);
     expectIssue(report, "missing-contradiction-evidence", "sideB");
+  });
+
+  it("rejects contradiction candidates that drift from the shared unresolved status shape", async () => {
+    const { validateBriefProposalOnly } = await loadBriefProposalValidationModule();
+    const brief = {
+      ...(goodBrief() as Record<string, unknown>),
+      contradictionCandidates: [
+        {
+          title: "Brief status conflict",
+          sideA: { claim: "One source says complete.", evidenceIds: ["msg_status_done"] },
+          sideB: { claim: "", evidenceIds: ["issue_upd_002"] },
+          resolution: "unresolved",
+        },
+      ],
+    };
+
+    const report = validateBriefProposalOnly(brief);
+
+    expect(report.ok).toBe(false);
+    expectIssue(report, "invalid-contradiction", "status");
+    expectIssue(report, "invalid-contradiction", "claim");
   });
 
   it("returns the rolling last-24-hours ISO bounds for the default brief window with a pinned clock", async () => {

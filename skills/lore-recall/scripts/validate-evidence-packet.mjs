@@ -9,11 +9,26 @@ if (!path) {
   process.exit(2);
 }
 
-const packet = JSON.parse(readFileSync(path, "utf8"));
+let packet;
+try {
+  packet = JSON.parse(readFileSync(path, "utf8"));
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(`evidence packet invalid:\n- ${detail}`);
+  process.exit(1);
+}
 const issues = [];
 
 function requireField(obj, field, where) {
   if (!(field in obj)) issues.push(`${where} missing ${field}`);
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+if (!isRecord(packet)) {
+  issues.push("packet must be an object");
 }
 
 for (const field of [
@@ -25,16 +40,20 @@ for (const field of [
   "gaps",
   "nextQueries",
 ]) {
-  requireField(packet, field, "packet");
+  if (isRecord(packet)) requireField(packet, field, "packet");
 }
-if (!Array.isArray(packet.plan) || packet.plan.length === 0)
+if (!Array.isArray(packet?.plan) || packet.plan.length === 0)
   issues.push("packet plan must be non-empty");
-if (!Array.isArray(packet.selectedEvidence)) issues.push("selectedEvidence must be an array");
-if (!Array.isArray(packet.gaps)) issues.push("gaps must be an array");
+if (!Array.isArray(packet?.selectedEvidence)) issues.push("selectedEvidence must be an array");
+if (!Array.isArray(packet?.gaps)) issues.push("gaps must be an array");
 
 const labels = new Set(["current", "recent", "stale", "unknown"]);
 const syncStatuses = new Set(["fresh", "possibly_stale", "unknown"]);
 for (const [index, evidence] of (packet.selectedEvidence ?? []).entries()) {
+  if (!isRecord(evidence)) {
+    issues.push(`selectedEvidence[${index}] must be an object`);
+    continue;
+  }
   for (const field of [
     "claim",
     "messageId",
@@ -60,6 +79,9 @@ for (const [index, evidence] of (packet.selectedEvidence ?? []).entries()) {
   }
   if (evidence.syncStatus !== "fresh" && !evidence.staleReason) {
     issues.push(`selectedEvidence[${index}] staleReason required unless syncStatus is fresh`);
+  }
+  if (evidence.syncStatus === "fresh" && evidence.staleReason != null) {
+    issues.push(`selectedEvidence[${index}] staleReason must be null when syncStatus is fresh`);
   }
 }
 

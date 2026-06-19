@@ -76,10 +76,9 @@ function validateClaimList(value: unknown, section: string, issues: ValidationIs
       issues.push(issue("invalid-claim", "Claim must include text or path", path));
     }
 
-    const evidenceIds = item.evidenceIds;
     const uncited = item.uncited === true;
-    if ((!Array.isArray(evidenceIds) || evidenceIds.length === 0) && !uncited) {
-      issues.push(issue("missing-evidence", "Claims need evidenceIds or uncited:true", path));
+    if (!uncited) {
+      validateEvidenceIds(item.evidenceIds, path, issues, "missing-evidence");
     }
   });
 }
@@ -109,6 +108,7 @@ function validateProposals(value: unknown, issues: ValidationIssue[]): void {
 
 function validateMemoryCardCandidates(value: unknown, issues: ValidationIssue[]): void {
   if (!Array.isArray(value)) return;
+  const allowedKinds = new Set(REQUIRED_MEMORY_KINDS);
   const kinds = new Set<string>();
   value.forEach((candidate, index) => {
     const path = `memoryCardCandidates[${index}]`;
@@ -116,7 +116,20 @@ function validateMemoryCardCandidates(value: unknown, issues: ValidationIssue[])
       issues.push(issue("invalid-memory-card-candidate", "Candidate must be object", path));
       return;
     }
-    if (typeof candidate.kind === "string") kinds.add(candidate.kind);
+    if (typeof candidate.kind === "string") {
+      kinds.add(candidate.kind);
+      if (!allowedKinds.has(candidate.kind)) {
+        issues.push(
+          issue(
+            "invalid-memory-card-candidate",
+            `Unknown memory card kind ${candidate.kind}`,
+            `${path}.kind`,
+          ),
+        );
+      }
+    } else {
+      issues.push(issue("invalid-memory-card-candidate", "Candidate missing kind", `${path}.kind`));
+    }
     validateEvidenceIds(candidate.evidenceIds, path, issues, "missing-memory-card-evidence");
   });
 
@@ -166,7 +179,11 @@ function validateEvidenceIds(
   issues: ValidationIssue[],
   code: string,
 ): void {
-  if (!Array.isArray(value) || value.length === 0) {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((id) => typeof id !== "string" || id.trim().length === 0)
+  ) {
     issues.push(issue(code, `${path} must include evidenceIds`, path));
   }
 }
