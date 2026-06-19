@@ -1,0 +1,32 @@
+{
+  "verified": [
+    { "text": "UPD-002 brief workflow landed on integration.", "evidenceIds": ["m-synthetic-1"] }
+  ],
+  "open": [{ "text": "UPD-004 packaging docs remain.", "evidenceIds": ["m-synthetic-2"] }],
+  "stale": [
+    { "text": "Older workflow notes may predate review fixes.", "evidenceIds": ["m-synthetic-3"] }
+  ],
+  "risky": [
+    {
+      "text": "Package dry-run has not yet proven skill inclusion.",
+      "evidenceIds": ["m-synthetic-4"]
+    }
+  ],
+  "artifacts": [{ "path": "skills/lore-brief/SKILL.md", "evidenceIds": ["m-synthetic-5"] }],
+  "proposals": [
+    {
+      "kind": "issue",
+      "title": "Run packaging smoke",
+      "rationale": "UPD-004 requires package proof.",
+      "risk": "Low",
+      "nextAction": "Run npm pack --dry-run",
+      "evidenceIds": ["m-synthetic-6"]
+    }
+  ],
+  "nextActions": [
+    {
+      "text": "Inspect current repo files before trusting stale transcript claims.",
+      "evidenceIds": ["m-synthetic-7"]
+    }
+  ]
+}
