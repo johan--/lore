@@ -74,8 +74,8 @@ prints the registration guidance from Step 3.
   `lore sample <your-transcript-dir>` to inspect the format, then
   `lore index <dir> --source <name>`. If no adapter fits, follow
   the `lore` skill's `references/setup/index.md` (`skills/lore/references/setup/index.md`) to
-  write and prove one, or use the live `push` MCP tool if your harness has no
-  files at all.
+  write and prove one, or use CLI `lore push` / MCP `push` if your harness has
+  no files at all.
 - If the search self-check says **OK**, indexing and retrieval both work. For each
   source you care about, sanity-check the per-source line: a first run should show
   non-zero messages, while a repeat run may show `0 messages` because all files

@@ -164,12 +164,25 @@ lore context <message-id>                  # 5 before / 5 after, anchor flagged
 lore session <session-id> --around <message-id>   # jump to that spot, read forward
 ```
 
-Other commands round out the loop — `lore sessions` (recent conversations),
-`lore timeline` (activity by day/hour), and `lore push` (add a live session from a
-JSON batch on stdin). Add `--json` to any of them for a machine-readable envelope.
+Other commands round out the loop — `lore status` (freshness/health),
+`lore sessions` (recent conversations), `lore timeline` (activity by day/hour),
+and `lore push` (add a live session from a JSON batch on stdin). Add `--json` to
+any of them for a machine-readable envelope.
 Every search filter the MCP tools accept works here too (`--project`, `--source`,
 `--session`, `--branch`, `--agent`, `--skill`, `--tool`, `--role`, `--model`,
 `--since`, `--until`, `--limit`).
+
+Before asking for a current brief or handoff, check freshness:
+
+```bash
+lore status --json --source codex --project "$PWD"
+```
+
+`schemaVersion` and `supportedSchemaVersion` tell you whether this build can
+write to the store. Read-only search may still work against a newer compatible
+store, but sync/index/push only run when the installed build supports the store
+schema. In a source checkout, run `npm run build` before trusting the global
+`lore` shim; npm installs should update or reinstall the package.
 
 **CLI ⇄ MCP parity is proven, not asserted.** Each `lore … --json` envelope is
 byte-for-byte identical to the matching MCP tool's response, verified by a parity
@@ -185,6 +198,7 @@ faithful stand-in for the server:
 | session page | `lore session` | `get_session` | `{ messages, nextCursor }` |
 | session list | `lore sessions` | `list_sessions` | `{ count, sessions }` |
 | activity | `lore timeline` | `timeline` | `{ buckets }` |
+| status/freshness | `lore status` | `status` | status envelope |
 | write | `lore push` | `push` | result / `{ error, detail }` |
 
 The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
@@ -234,15 +248,17 @@ That smoke builds the CLI, preserves executable mode for `dist/cli/lore.js`, val
 
 ### What your agent can do
 
-| Tool            | What it does                                                          |
-| --------------- | -------------------------------------------------------------------- |
+| Tool            | What it does                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| `status`        | Store health/freshness, schema version, source/project scoped counts. |
 | `search_memory` | Keyword search across every transcript, ranked by bm25, with filters. |
-| `find_relevant` | Like `search_memory`, but blends relevance with recency.             |
-| `get_message`   | Fetch one message by id (`full=true` returns the un-elided text).    |
-| `get_context`   | The neighbor window around an anchor message.                        |
-| `get_session`   | One logical session as a folded, paginated timeline.                 |
-| `list_sessions` | Session rollups (counts, first / last activity), filterable.         |
-| `timeline`      | Bucketed activity over time, by day or hour.                         |
+| `find_relevant` | Like `search_memory`, but blends relevance with recency.              |
+| `get_message`   | Fetch one message by id (`full=true` returns the un-elided text).     |
+| `get_context`   | The neighbor window around an anchor message.                         |
+| `get_session`   | One logical session as a folded, paginated timeline.                  |
+| `list_sessions` | Session rollups (counts, first / last activity), filterable.          |
+| `timeline`      | Bucketed activity over time, by day or hour.                          |
+| `push`          | Write one normalized live JSON batch, matching CLI `lore push`.       |
 
 Every search tool takes the same dimension filters: `project`, `branch`,
 `source`, `agent`, `skill`, `tool`, `role`, `model`, `since`, `until`, `limit`.

@@ -291,6 +291,7 @@ Every `--json` output is byte-shaped like the matching MCP tool's response, so
 | session page | `lore session` | `get_session` | `{ messages, nextCursor }` |
 | session list | `lore sessions` | `list_sessions` | `{ count, sessions }` |
 | activity | `lore timeline` | `timeline` | `{ buckets }` |
+| status/freshness | `lore status` | `status` | status envelope |
 | write | `lore push` | `push` | result / `{ error: "invalid_batch", detail }` |
 
 ## Worked recipes

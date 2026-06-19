@@ -137,6 +137,21 @@ Usage:
   lore serve                       Start the MCP server over stdio
   lore help                        Show this help
 
+Common workflows:
+  Recall past work:     lore search "decision words" --project <repo> --relevant
+                        then spend the returned ids with lore get/context/session.
+  Freshen Codex memory: npm run build in a source checkout, then lore sync codex.
+                        For npm installs, reinstall/update Lore instead of relying
+                        on an old global dist/ build.
+  Check health first:   lore status --json --source codex --project <repo>
+                        Inspect schemaVersion and supportedSchemaVersion. Read
+                        paths may work on newer compatible stores, but write
+                        paths only run when this build supports the store schema.
+  Workflow skills:      lore-recall, lore-brief, lore-handoff, and
+                        lore-dev-verification are packaged skill bundles built on
+                        this CLI substrate. Briefs/handoffs should stop on stale
+                        status instead of pretending current memory is complete.
+
 Env:
   LORE_DB        Path to the SQLite store (default: ~/.lore/lore.db)
   LORE_LOG_LEVEL debug|info|warn|error (default: info)

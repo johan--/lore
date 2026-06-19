@@ -51,10 +51,11 @@ Pick by answering one question:
   already has an adapter for the format, you are done in one command. If not, you
   write a small **reviewed, committed code adapter** (Step 3b) and prove it with
   the conformance harness before using it.
-- **No, or not yet — live process only (PUSH path, the `push` MCP tool).** If the
-  harness has no readable on-disk transcript, or you want memory working *right
-  now* with zero code, the live process calls `push` with normalized records. No
-  adapter, no clone, no rebuild. See Step 3c.
+- **No, or not yet — live process only (PUSH path, CLI `lore push` or MCP
+  `push`).** If the harness has no readable on-disk transcript, or you want
+  memory working *right now* with zero code, the live process sends normalized
+  records through the CLI or the equivalent MCP tool. No adapter, no clone, no
+  rebuild. See Step 3c.
 
 When both are possible, prefer PULL: it backfills all history, not just sessions
 from now on. PUSH is the immediate zero-setup front door; a code adapter is the

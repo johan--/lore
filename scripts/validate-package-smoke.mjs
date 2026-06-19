@@ -62,7 +62,7 @@ try {
   validatePackagedTree(packageRoot);
 
   const help = run("node", [join(packageRoot, "dist/cli/lore.js"), "help"], repoRoot).stdout;
-  assert(help.includes("lore status"), "packaged CLI help must include status command");
+  validateHelp(help);
 
   console.log(
     JSON.stringify(
@@ -78,6 +78,30 @@ try {
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
+}
+
+function validateHelp(help) {
+  const required = [
+    "lore setup",
+    "lore index",
+    "lore sync codex",
+    "lore status",
+    "lore search",
+    "lore get",
+    "lore context",
+    "lore session",
+    "lore timeline",
+    "lore push",
+    "lore-recall",
+    "lore-brief",
+    "lore-handoff",
+    "lore-dev-verification",
+    "schemaVersion",
+    "supportedSchemaVersion",
+  ];
+  for (const snippet of required) {
+    assert(help.includes(snippet), `packaged CLI help must include ${snippet}`);
+  }
 }
 
 function validatePackMetadata(meta, label) {
