@@ -17,10 +17,61 @@
     {
       "kind": "issue",
       "title": "Run packaging smoke",
-      "rationale": "UPD-004 requires package proof.",
-      "risk": "Low",
-      "nextAction": "Run npm pack --dry-run",
-      "evidenceIds": ["m-synthetic-6"]
+      "why": "UPD-004 requires package proof before the workflow pack is called shippable.",
+      "evidenceIds": ["m-synthetic-6"],
+      "sideEffects": false
+    }
+  ],
+  "memoryCardCandidates": [
+    {
+      "kind": "decision",
+      "title": "Handoffs cite compact evidence instead of transcript dumps",
+      "why": "The next agent needs provenance without raw transcript soup.",
+      "evidenceIds": ["m-synthetic-8"]
+    },
+    {
+      "kind": "claim",
+      "title": "The handoff slice is not complete until review fixes land",
+      "why": "Reviewer findings identified vocabulary and no-dump gaps.",
+      "evidenceIds": ["m-synthetic-9"]
+    },
+    {
+      "kind": "commitment",
+      "title": "Run handoff validator before merge",
+      "why": "UPD-003 requires deterministic helper verification.",
+      "evidenceIds": ["m-synthetic-10"]
+    },
+    {
+      "kind": "artifact",
+      "title": "skills/lore-handoff/evals/test-report.md",
+      "why": "The committed report records the skill eval proof.",
+      "evidenceIds": ["m-synthetic-11"]
+    },
+    {
+      "kind": "contradiction",
+      "title": "One note says the slice landed while review says blockers remain",
+      "why": "The handoff must preserve both sides until fixes are verified.",
+      "evidenceIds": ["m-synthetic-12", "m-synthetic-13"]
+    },
+    {
+      "kind": "open_question",
+      "title": "Should package usability smoke also prove the global lore shim?",
+      "why": "A usable CLI is part of agent readiness but belongs to UPD-004 packaging.",
+      "evidenceIds": ["m-synthetic-14"]
+    }
+  ],
+  "contradictionCandidates": [
+    {
+      "kind": "contradiction",
+      "sideA": {
+        "claim": "UPD-003 was already merged into integration.",
+        "evidenceIds": ["m-synthetic-12"]
+      },
+      "sideB": {
+        "claim": "Post-merge review found blocking handoff gaps.",
+        "evidenceIds": ["m-synthetic-13"]
+      },
+      "status": "unresolved"
     }
   ],
   "nextActions": [
