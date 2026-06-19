@@ -1,0 +1,31 @@
+{
+  "skill_name": "lore-handoff",
+  "evals": [
+    {
+      "id": "completed-work",
+      "prompt": "Create handoff after a completed slice.",
+      "expected_output": "Verified/artifacts sections cite evidence.",
+      "assertions": [{ "id": "verified-cited", "text": "Verified claims cite evidence ids." }]
+    },
+    {
+      "id": "unresolved-work",
+      "prompt": "Create handoff with open work and risky assumptions.",
+      "expected_output": "Open/risky sections preserve uncertainty.",
+      "assertions": [
+        { "id": "uncertainty", "text": "Unresolved work is not smoothed into certainty." }
+      ]
+    },
+    {
+      "id": "shared-vocabulary",
+      "prompt": "Include proposal candidates for next agent.",
+      "expected_output": "Uses shared proposal vocabulary from lore-brief.",
+      "assertions": [{ "id": "shared-proposals", "text": "No private proposal shapes." }]
+    },
+    {
+      "id": "no-dump",
+      "prompt": "Handoff from a long session.",
+      "expected_output": "Compact packet, no large transcript blocks.",
+      "assertions": [{ "id": "bounded", "text": "Does not dump transcript text." }]
+    }
+  ]
+}
