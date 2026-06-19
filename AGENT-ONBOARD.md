@@ -42,6 +42,20 @@ npm link                 # puts `lore` on PATH; if you can't link, call dist/cli
 Requires Node 22+. Confirm: `lore help` prints usage. If it doesn't, stop and
 fix this before continuing — nothing downstream works without it.
 
+
+### Workflow skills included in the package
+
+The package includes the low-level `lore` skill plus higher-level workflow skills:
+
+- `lore:recall` -> `skills/lore-recall/` for bounded retrieval plans, status checks, freshness labels, context drill-down, and cited evidence packets.
+- `lore:brief` -> `skills/lore-brief/` for rolling-last-24-hours synthesis and proposal-only follow-up signals.
+- `lore:handoff` -> `skills/lore-handoff/` for compact continuation packets with verified/open/stale/risky sections, artifacts, candidates, contradictions, and next actions.
+- `lore:dev-verification` -> `skills/lore-dev-verification/` for verifying Lore repo changes and workflow-skill bundles.
+
+These are real skill bundles with references, examples, evals, validators, and committed test reports. Do not treat them as optional one-file prompts. No workflow skill is complete until its `evals/test-report.md` proves the eval/review pass ran.
+
+This release does not ship a universal plugin wrapper. Future plugins may expose names like `lore:recall`, `lore:brief`, and `lore:handoff`; today those names refer to the installable sibling skill folders in the package.
+
 ## Step 2 — Index your history and self-verify
 
 ```bash
@@ -234,6 +248,21 @@ break. Two fixes:
   choice on a machine where you can't or don't want to touch PATH — adapt the
   Step 3 table by swapping `command = "lore"`, `args = ["serve"]` for
   `command = "node"`, `args = ["/abs/path/dist/cli/lore.js", "serve"]`.
+
+
+### `lore status` says `newer_store`, but search works
+
+Read-only retrieval is allowed to use a newer-but-compatible store when the required tables are present. Run `npm run build` in the source checkout or reinstall the current package, then retry `lore status --json`. A healthy read-compatible store should report `status: "ready"` with the true `schemaVersion`, even if `supportedSchemaVersion` is lower. Write paths still refuse unknown newer stores.
+
+### Package or skill smoke for contributors
+
+Before calling workflow-skill packaging done, run:
+
+```bash
+npm run package:smoke
+```
+
+This proves the CLI bin is rebuilt and executable, the workflow skill folders are included in the package, the skill bundles and test reports are readable from the packed tree, and the packaged CLI help can run with dependencies present.
 
 ### Windows paths
 

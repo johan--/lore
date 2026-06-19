@@ -93,15 +93,6 @@ export function readLoreStatus(
   storePath = databaseName(db),
 ): LoreStatusEnvelope {
   const schemaVersion = getSchemaVersion(db);
-  if (schemaVersion > SCHEMA_VERSION) {
-    return baseStatus(
-      "newer_store",
-      storePath,
-      schemaVersion,
-      options,
-      "Update Lore before reading this store.",
-    );
-  }
   if (schemaVersion < SCHEMA_VERSION) {
     return baseStatus(
       "stale_schema",

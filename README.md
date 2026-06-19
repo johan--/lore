@@ -193,6 +193,28 @@ dumping. It's self-bootstrapping: its `references/setup/index.md` covers getting
 indexed in the first place (install, index/backfill a harness, write an adapter,
 or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
 
+
+## Agent Workflow Skills
+
+The low-level `skills/lore/` skill teaches agents how to install Lore, index transcripts, search memory, drill into message ids, and use the MCP server when a harness supports it. The workflow pack sits above that substrate:
+
+- `lore:recall` maps to `skills/lore-recall/`. It plans bounded retrieval, checks `lore status --json`, labels freshness, drills into context windows, and emits cited evidence packets instead of transcript dumps.
+- `lore:brief` maps to `skills/lore-brief/`. It defaults to the rolling last 24 hours, summarizes completed/open work, and proposes follow-up skills, jobs, issues, fixes, tasks, memory cards, or wiki updates without performing them.
+- `lore:handoff` maps to `skills/lore-handoff/`. It creates compact continuation packets with verified/open/stale/risky sections, artifacts, shared proposal objects, memory-card candidates, contradiction candidates, and next actions.
+- `lore:dev-verification` maps to `skills/lore-dev-verification/`. It is the project-specific verification gate for Lore repo changes: CLI/MCP parity, store compatibility, adapter fidelity, privacy/destructive-memory behavior, package smoke, and workflow-skill eval proof.
+
+These are installable skill bundles, not one-file prompt snippets. Each workflow skill includes `SKILL.md`, references, examples, eval specs, validator scripts where structure is deterministic, and `evals/test-report.md`. A workflow skill is not complete until its test report proves the eval/review pass ran and the bundle validator passes.
+
+There is no universal plugin wrapper in this release. A future plugin could bundle names such as `lore:recall`, `lore:brief`, and `lore:handoff`, but today the shipped surface is the package `skills/` tree plus the `lore` CLI/MCP substrate. Workflow skills may propose actions; they must not create jobs, edit prompts, update wiki pages, create tasks, modify code, or run destructive memory operations unless the user explicitly asks for that next step.
+
+Packaging proof lives in:
+
+```bash
+npm run package:smoke
+```
+
+That smoke builds the CLI, preserves executable mode for `dist/cli/lore.js`, validates package dry-run metadata, packs a real tarball, reads the workflow skill folders from the packaged tree, checks non-hollow test-report headings, and verifies the packaged CLI help can run with dependencies present.
+
 ## 🔌 Serve it to your client
 
 `lore serve` starts the MCP server over stdio. Point any MCP client at it.

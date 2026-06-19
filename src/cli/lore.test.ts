@@ -568,6 +568,26 @@ describe("lore CLI", () => {
     });
   });
 
+  it("`status --json` treats newer read-compatible stores as ready", async () => {
+    seedStatusStore();
+    const db = new Database(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const result = await runCaptured(["status", "--json", "--source", "claude-code"]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      status: "ready",
+      schemaVersion: SCHEMA_VERSION + 1,
+      supportedSchemaVersion: SCHEMA_VERSION,
+      messageCount: 1,
+      sessionCount: 1,
+      recovery: null,
+    });
+  });
+
   it("`status --json --source <missing>` returns source_absent only for source-scoped misses", async () => {
     seedStatusStore();
 

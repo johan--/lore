@@ -605,3 +605,19 @@ Vertical issue slices after adjudication:
 These slices are the approved inputs for the `UPD` issue series. Issue files
 should be written in dependency order and treated as ready for the program
 workflow once their per-slice test-author/implementer/reviewer loop starts.
+
+
+## Packaging And Execution Notes
+
+UPD-004 ships the workflow pack as sibling skill folders in the existing package `skills/` tree. Product names such as `lore:recall`, `lore:brief`, `lore:handoff`, and `lore:dev-verification` are documentation names for those folders, not proof that a universal plugin wrapper exists in this release. A plugin wrapper remains optional future packaging.
+
+The package smoke command is:
+
+```bash
+npm run package:smoke
+```
+
+It builds the CLI, restores executable mode on `dist/cli/lore.js`, validates `npm pack --dry-run --json`, packs a real tarball, reads the workflow skills from the packaged tree, checks required test-report headings, and verifies packaged CLI help. This command is the durable proof that the workflow skills are shipped as bundles rather than loose prompt files.
+
+The issue DAG executed in dependency order: UPD-000 verification gate, UPD-001 recall/status/evidence, UPD-002 brief/proposal vocabulary, UPD-003 handoff continuation, and UPD-004 packaging/docs smoke. UPD-003 review fixes were applied after merge and merged again into integration before cleanup. UPD-004 additionally captured the live usability regression where `lore status` blocked on a newer-but-readable store even though `lore search` worked; read-only status now follows the read-compatibility policy while write paths continue to refuse unknown newer stores.
+
