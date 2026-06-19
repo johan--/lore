@@ -61,3 +61,7 @@ Created the recall workflow skill bundle, evidence packet contract, query planni
 ## Remaining Risks
 
 Manual evals prove routing and output contract, not LLM quality at scale. Future iterations can add transcript-fixture simulations once safe synthetic fixtures exist.
+
+## Live Workflow Exercise - 2026-06-19
+
+Ran `lore status`, exact searches, broadened search, `lore get`, and `lore context` against the live store for `/Users/jordanhindo/lore`. The recall skill produced `/private/tmp/lore-live-skill-tests/recall-evidence-packet.json`, which passed `node skills/lore-recall/scripts/validate-evidence-packet.mjs`. The exercise proved the drill-down loop works on real ids, but it also proved current-work recall is stale: exact `UPD-004 package smoke` search returned zero hits and the latest indexed Codex evidence for this repo is 2026-06-16.

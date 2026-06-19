@@ -61,3 +61,7 @@ Added deterministic validators for workflow skill bundle shape and `evals/test-r
 ## Remaining Risks
 
 This report proves the dev-verification skill routes representative verification scenarios and that structure can be checked. Later workflow skills still need their own with-skill eval evidence and validator output.
+
+## Live Workflow Exercise - 2026-06-19
+
+Applied the verification skill to the workflow-pack itself after validator-only testing proved insufficient. Live tests against Lore found three issues that static bundle checks missed: stale-window recovery recommended an impossible sync path for a newer store, `lore-brief` used an inconsistent private proposal shape, and the main `skills/lore` entrypoint did not route to the new workflow skills. These were patched and covered by targeted tests/validators. Remaining risk: `lore sync codex` still cannot write to the schema-5 live store from this checkout.

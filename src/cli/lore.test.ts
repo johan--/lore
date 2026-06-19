@@ -659,6 +659,32 @@ describe("lore CLI", () => {
     });
   });
 
+  it("`status --json --since <recent>` does not recommend sync when newer store blocks writes", async () => {
+    seedStatusStore();
+    const db = new Database(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const result = await runCaptured([
+      "status",
+      "--json",
+      "--project",
+      "/repo",
+      "--since",
+      "2026-06-01T00:00:00.000Z",
+    ]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      status: "possibly_unsynced",
+      schemaVersion: SCHEMA_VERSION + 1,
+      supportedSchemaVersion: SCHEMA_VERSION,
+      recovery: expect.stringContaining("Update Lore"),
+    });
+    expect(JSON.parse(result.stdout).recovery).toContain("cannot run write/sync recovery");
+  });
+
   it("`sample <dir>` prints a format summary an onboarding agent can act on", async () => {
     const lines = [
       JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "hi" } }),

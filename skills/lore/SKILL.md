@@ -17,8 +17,19 @@ If `lore help` errors, the CLI isn't installed yet — and if a search comes bac
 empty because a harness was never indexed, that's the onboarding job. Both are
 covered by this same skill: read **`references/setup/index.md`** to install lore, index
 or backfill a harness, teach lore a new format, or feed a live process, then come
-back here to use what you indexed. You don't hand off to another skill — this one
-self-bootstraps.
+back here to use what you indexed. This skill self-bootstraps the low-level CLI substrate; for higher-level workflows, route to the workflow skills below instead of re-inventing their output contracts.
+
+
+## Workflow skills built on top of lore
+
+Use this `lore` skill for the raw substrate: install, index, sync, search, get, context, session navigation, push, and destructive-memory safety. When the task is not just retrieval mechanics, hand the work to the workflow skill that owns the behavior:
+
+- `lore-recall` (`lore:recall` in product docs): use for bounded memory answers, query plans, freshness labels, evidence packets, and retrieval-failure ledgers. It should still call the CLI commands documented here, but it owns the reasoning workflow and packet shape.
+- `lore-brief` (`lore:brief`): use for daily/rolling continuity briefs, proposal-only synthesis, learned signals, memory-card candidates, and contradiction candidates. It must not create jobs, issues, wiki pages, skills, tasks, memory cards, code, or automations unless the user explicitly asks for that follow-up.
+- `lore-handoff` (`lore:handoff`): use for compact continuation packets for the next agent, with verified/open/stale/risky sections, artifacts, proposals, memory-card candidates, contradiction candidates, and next actions.
+- `lore-dev-verification` (`lore:dev-verification`): use when changing this repository, workflow skills, CLI/MCP retrieval, packaging, adapters, store compatibility, privacy, or destructive-memory behavior.
+
+If a workflow skill reports that Lore is stale or unsynced, come back to this skill for the mechanical recovery command (`lore sync`, `lore index`, hook setup, or adapter work). If `lore status --json` shows `schemaVersion` greater than `supportedSchemaVersion`, read-only search may work but write recovery such as `lore sync` can be refused; update Lore before promising that sync will fix freshness.
 
 ## The one rule that governs everything: drill down, never dump
 

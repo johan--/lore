@@ -145,7 +145,7 @@ export function readLoreStatus(
         storePath,
         schemaVersion,
         options,
-        "The scoped store has older matching messages but none in the requested time window. Run `lore sync` or an index hook if you expected recent work.",
+        possiblyUnsyncedRecovery(schemaVersion),
       ),
       sources: sourceSummaries(db, { source: options.source, project: options.project }),
     };
@@ -186,6 +186,13 @@ function baseStatus(
     sources: [],
     recovery,
   };
+}
+
+function possiblyUnsyncedRecovery(schemaVersion: number): string {
+  if (schemaVersion > SCHEMA_VERSION) {
+    return "The scoped store has older matching messages but none in the requested time window. This checkout can read the newer store but cannot run write/sync recovery. Update Lore to a version that supports this store before running `lore sync` or an index hook.";
+  }
+  return "The scoped store has older matching messages but none in the requested time window. Run `lore sync` or an index hook if you expected recent work.";
 }
 
 function countAllMessages(db: Store): number {

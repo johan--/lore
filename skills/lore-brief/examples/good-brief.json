@@ -24,9 +24,7 @@
       "title": "Add lore-brief skill",
       "evidenceIds": ["m-synthetic-3"],
       "sideEffects": false,
-      "rationale": "Daily continuity needs proposal-only synthesis.",
-      "risk": "Low",
-      "nextAction": "Ask user before doing anything."
+      "why": "Daily continuity needs proposal-only synthesis."
     }
   ],
   "memoryCardCandidates": [
@@ -34,36 +32,36 @@
       "kind": "decision",
       "evidenceIds": ["m-synthetic-4"],
       "title": "Briefs propose only; they do not mutate.",
-      "rationale": "Briefs propose only; they do not mutate."
+      "why": "Briefs propose only; they do not mutate."
     },
     {
       "kind": "open_question",
       "evidenceIds": ["m-synthetic-5"],
       "title": "Should cron invoke this daily?",
-      "rationale": "Should cron invoke this daily?"
+      "why": "Should cron invoke this daily?"
     },
     {
       "kind": "claim",
       "title": "Briefs default to last 24 hours",
-      "rationale": "Default window is rolling 24h.",
+      "why": "Default window is rolling 24h.",
       "evidenceIds": ["m-synthetic-6"]
     },
     {
       "kind": "commitment",
       "title": "No writes from scheduled briefs",
-      "rationale": "Briefs are read-only.",
+      "why": "Briefs are read-only.",
       "evidenceIds": ["m-synthetic-7"]
     },
     {
       "kind": "artifact",
       "title": "skills/lore-brief/SKILL.md",
-      "rationale": "Brief skill artifact exists.",
+      "why": "Brief skill artifact exists.",
       "evidenceIds": ["m-synthetic-8"]
     },
     {
       "kind": "contradiction",
       "title": "Brief scheduling preference conflict",
-      "rationale": "Two evidence sides disagree on cron vs manual skill first.",
+      "why": "Two evidence sides disagree on cron vs manual skill first.",
       "evidenceIds": ["m-a", "m-b"]
     }
   ],

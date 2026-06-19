@@ -35,7 +35,7 @@ Use labels from `references/freshness.md`:
 
 ## Failure Recovery
 
-If status says `missing_store`, `empty_store`, `source_absent`, `possibly_unsynced`, `newer_store`, `stale_schema`, or `unreadable_store`, stop and report the status plus recovery. If search returns zero hits, broaden once, try one synonym query, and report `gaps` instead of pretending.
+If status says `missing_store`, `empty_store`, `source_absent`, `possibly_unsynced`, `newer_store`, `stale_schema`, or `unreadable_store`, stop and report the status plus recovery. If `schemaVersion` is greater than `supportedSchemaVersion`, say explicitly that read-only retrieval may work but write recovery such as `lore sync` can be refused until Lore is updated. If search returns zero hits, broaden once, try one synonym query, and report `gaps` instead of pretending.
 
 ## References
 

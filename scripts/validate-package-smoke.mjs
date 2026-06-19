@@ -139,7 +139,11 @@ function parsePackJson(stdout, label) {
 }
 
 function run(cmd, args, cwd) {
-  const result = spawnSync(cmd, args, { cwd, encoding: "utf8" });
+  const result = spawnSync(cmd, args, {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, npm_config_cache: join(tempDir, "npm-cache") },
+  });
   if (result.status !== 0) {
     throw new Error(
       `${cmd} ${args.join(" ")} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,

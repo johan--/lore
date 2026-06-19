@@ -36,3 +36,5 @@ Contradiction candidates preserve both sides:
 ```
 
 Keep each section compact. If a claim lacks evidence, use `uncited:true` and explain why. Do not paste transcript chunks; cite message ids and ask the next agent to drill down with `lore context` or `lore session --around` when needed.
+
+`evidenceIds` may be real Lore message ids or explicit artifact ids from the current run, such as `live-status-2026-06-19` or a checked file path. When an id is not a Lore message id, make that clear in the surrounding text so the next agent knows whether to use `lore get/context` or inspect a local artifact/command output.

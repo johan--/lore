@@ -106,10 +106,15 @@ function validateProposals(value: unknown, issues: ValidationIssue[]): void {
       issues.push(issue("invalid-proposal", "Proposal must be object", path));
       return;
     }
-    for (const field of ["kind", "title", "rationale", "risk", "nextAction"]) {
+    for (const field of ["kind", "title", "why"]) {
       if (typeof proposal[field] !== "string" || proposal[field].trim().length === 0) {
         issues.push(issue("invalid-proposal", `Proposal must include ${field}`, path));
       }
+    }
+    if (proposal.sideEffects !== false) {
+      issues.push(
+        issue("invalid-proposal", "Proposal must declare sideEffects:false", `${path}.sideEffects`),
+      );
     }
     validateEvidenceIds(proposal.evidenceIds, path, issues, "missing-proposal-evidence");
   });

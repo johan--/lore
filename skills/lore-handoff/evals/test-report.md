@@ -62,3 +62,7 @@ Created handoff skill bundle, packet reference, good/bad examples, evals, determ
 ## Remaining Risks
 
 Manual evals cover synthesis behavior at the instruction level; future synthetic multi-turn transcript fixtures could test richer end-to-end handoff generation. The deterministic checker intentionally validates packet structure and privacy/evidence guardrails, not semantic truth of cited message ids.
+
+## Live Workflow Exercise - 2026-06-19
+
+Created `/private/tmp/lore-live-skill-tests/handoff-live.json` from real Lore evidence and live status/sync results. The packet preserves verified, open, stale, risky, artifact, proposal, memory-card, contradiction, and next-action sections without transcript dumps. It passed `node skills/lore-handoff/scripts/validate-handoff.mjs`. The handoff explicitly carries the unresolved contradiction that read-only Lore can retrieve older evidence while write/sync recovery cannot refresh the current store.

@@ -74,12 +74,14 @@ function goodBrief(): unknown {
       {
         title: "UPD-002 now owns the shared proposal vocabulary",
         evidenceIds: ["issue_upd_002"],
+        sideEffects: false,
       },
     ],
     learnedSignals: [
       {
         title: "Scheduled brief usage must be read-only synthesis",
         evidenceIds: ["issue_upd_002"],
+        sideEffects: false,
       },
     ],
     staleOrUncertainEvidence: [
@@ -93,60 +95,54 @@ function goodBrief(): unknown {
       {
         kind: "skill",
         title: "Add lore-brief eval coverage for stale evidence",
-        rationale: "The issue requires stale-evidence behavior to be proven deterministically.",
+        why: "The issue requires stale-evidence behavior to be proven deterministically.",
         evidenceIds: ["issue_upd_002", "msg_brief_001"],
-        risk: "Low. This is proposal-only and requires explicit user approval before writes.",
-        nextAction: "Ask the user whether to create the eval fixture.",
+        sideEffects: false,
       },
       {
-        kind: "wiki-update",
+        kind: "wiki_update",
         title: "Capture the proposal-only brief contract",
-        rationale: "Future handoff and brief workflows should reuse one proposal vocabulary.",
+        why: "Future handoff and brief workflows should reuse one proposal vocabulary.",
         evidenceIds: ["issue_upd_002"],
-        risk: "Medium. The wiki update should cite the final accepted implementation, not this test alone.",
-        nextAction: "Propose a wiki update after UPD-002 lands.",
+        sideEffects: false,
       },
     ],
     memoryCardCandidates: [
       {
         kind: "decision",
         title: "Briefs are proposal-only",
-        rationale:
-          "Scheduled/no-side-effect usage must not create jobs, issues, wiki pages, skills, tasks, memory cards, or code.",
+        why: "Scheduled/no-side-effect usage must not create jobs, issues, wiki pages, skills, tasks, memory cards, or code.",
         evidenceIds: ["issue_upd_002"],
       },
       {
         kind: "claim",
         title: "Default brief window is rolling last 24 hours",
-        rationale:
-          "The issue makes this the deterministic default unless the user provides a window.",
+        why: "The issue makes this the deterministic default unless the user provides a window.",
         evidenceIds: ["issue_upd_002"],
       },
       {
         kind: "commitment",
         title: "Run brief checker before calling the skill complete",
-        rationale: "The issue requires structured checker output in the committed test report.",
+        why: "The issue requires structured checker output in the committed test report.",
         evidenceIds: ["issue_upd_002"],
       },
       {
         kind: "artifact",
         title: "skills/lore-brief/evals/test-report.md",
-        rationale: "The test report is part of the required brief skill bundle.",
+        why: "The test report is part of the required brief skill bundle.",
         evidenceIds: ["issue_upd_002"],
       },
       {
         kind: "contradiction",
         title:
           "One source says the task is complete while another says the skill bundle is missing",
-        rationale:
-          "Contradictions must preserve both sides with evidence rather than averaging them.",
+        why: "Contradictions must preserve both sides with evidence rather than averaging them.",
         evidenceIds: ["msg_status_done", "issue_upd_002"],
       },
       {
         kind: "open_question",
         title: "Which proposals should be promoted after the user approves follow-up?",
-        rationale:
-          "The brief may propose follow-up objects but cannot perform those actions itself.",
+        why: "The brief may propose follow-up objects but cannot perform those actions itself.",
         evidenceIds: ["issue_upd_002"],
       },
     ],
@@ -191,10 +187,9 @@ describe("brief proposal validation", () => {
           {
             kind: "issue",
             title: "Created issue for the brief checker",
-            rationale: "Created GitHub issue #123 from the brief output.",
+            why: "Created GitHub issue #123 from the brief output.",
+            sideEffects: false,
             evidenceIds: ["issue_upd_002"],
-            risk: "High. This implies a write already happened.",
-            nextAction: "Issue #123 was created and assigned.",
           },
         ],
       },
@@ -223,9 +218,8 @@ describe("brief proposal validation", () => {
 
     expect(report.ok).toBe(false);
     expectIssue(report, "invalid-proposal", "title");
-    expectIssue(report, "invalid-proposal", "rationale");
-    expectIssue(report, "invalid-proposal", "risk");
-    expectIssue(report, "invalid-proposal", "nextAction");
+    expectIssue(report, "invalid-proposal", "why");
+    expectIssue(report, "invalid-proposal", "sideEffects");
   });
 
   it("rejects a contradiction candidate that is missing evidence for one side", async () => {

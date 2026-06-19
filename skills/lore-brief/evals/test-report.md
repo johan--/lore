@@ -57,3 +57,7 @@ Created `lore-brief` bundle, shared proposal vocabulary, examples, evals, determ
 ## Remaining Risks
 
 Manual evals prove workflow routing and structure. They do not prove all LLM synthesis quality; future synthetic transcript fixtures can improve coverage.
+
+## Live Workflow Exercise - 2026-06-19
+
+Ran the default-window status path against live Lore for `/Users/jordanhindo/lore`. Status returned `possibly_unsynced` for the 2026-06-18..2026-06-19 window, with `schemaVersion:5` and `supportedSchemaVersion:3`. `lore sync codex` then failed with `newer_store`, so the brief skill correctly had to refuse normal synthesis and emit a proposal-only stale-window brief. The live brief artifact `/private/tmp/lore-live-skill-tests/brief-stale-window.json` passed `node skills/lore-brief/scripts/validate-brief.mjs`. This exercise also found and fixed the old private proposal shape in the brief validator.
