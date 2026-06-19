@@ -607,6 +607,38 @@ describe("lore CLI", () => {
     });
   });
 
+  it("`status --json --since <recent>` flags known stale scopes as possibly_unsynced", async () => {
+    seedStatusStore();
+
+    const result = await runCaptured([
+      "status",
+      "--json",
+      "--project",
+      "/repo",
+      "--since",
+      "2026-06-01T00:00:00.000Z",
+    ]);
+
+    expect({ code: result.code, stderr: result.stderr }).toEqual({ code: 0, stderr: "" });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      status: "possibly_unsynced",
+      filters: { project: "/repo", since: "2026-06-01T00:00:00.000Z" },
+      messageCount: 0,
+      sessionCount: 0,
+      sources: [
+        {
+          source: "claude-code",
+          messageCount: 1,
+          sessionCount: 1,
+          latestMessageTimestamp: "2026-05-10T12:00:00.000Z",
+          latestIndexedAt: "2026-05-10T12:05:00.000Z",
+        },
+      ],
+      recovery: expect.stringContaining("sync"),
+    });
+  });
+
   it("`sample <dir>` prints a format summary an onboarding agent can act on", async () => {
     const lines = [
       JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "hi" } }),

@@ -1,6 +1,12 @@
 {
   "question": "What did we decide about Lore recall?",
-  "status": { "status": "ready", "messageCount": 2, "filters": { "project": "/repo" } },
+  "status": {
+    "status": "ready",
+    "messageCount": 2,
+    "filters": {
+      "project": "/repo"
+    }
+  },
   "plan": [
     "Search exact phrase 'Lore recall evidence packet' scoped to /repo.",
     "Search synonym 'bounded context provenance freshness' with --relevant."
@@ -13,10 +19,16 @@
       "source": "codex",
       "project": "/repo",
       "branch": "main",
-      "timestamp": "2026-05-10T00:00:00.000Z",
       "role": "assistant",
       "freshness": "recent",
-      "excerpt": "Use search, then drill down with real ids; never dump whole sessions."
+      "excerpt": "Use search, then drill down with real ids; never dump whole sessions.",
+      "sourceFileId": "sf-synthetic-1",
+      "messageTimestamp": "2026-05-10T00:00:00.000Z",
+      "indexedAt": "2026-05-10T00:05:00.000Z",
+      "ageFromMessage": "recent",
+      "ageFromIndex": "recent",
+      "syncStatus": "fresh",
+      "staleReason": null
     }
   ],
   "answer": "The decision was to make recall evidence-first and bounded, citing m-synthetic-1.",

@@ -39,7 +39,7 @@ Previous baseline was the low-level `skills/lore` CLI manual. It explains comman
 
 ## Validator Output
 
-- evidence packet checker: PASS for `examples/good-evidence-packet.json`.
+- evidence packet checker: PASS for `examples/good-evidence-packet.json`, including sourceFileId, messageTimestamp, indexedAt, age buckets, syncStatus, and staleReason.
 - workflow skill bundle checker: PASS after implementation.
 - test-report structure checker: PASS after implementation.
 
@@ -56,7 +56,7 @@ All examples use synthetic ids and excerpts. Real usage should paraphrase or quo
 
 ## Changes Made After Testing
 
-Created the recall workflow skill bundle, evidence packet contract, query planning and freshness references, good/bad/failure examples, eval specs, deterministic packet checker, and this report.
+Created the recall workflow skill bundle, evidence packet contract, query planning and freshness references, good/bad/failure examples, eval specs, deterministic packet checker, and this report. Post-review fixes added `possibly_unsynced` handling and stronger freshness metadata checks.
 
 ## Remaining Risks
 

@@ -1,8 +1,15 @@
+import { existsSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createLoreServer } from "./server.js";
 import { openStore, openStoreReadonly } from "../core/store/open-store.js";
 import { resolveDbPath } from "../core/db-path.js";
 import { logger } from "../core/logger.js";
+import {
+  missingStoreStatus,
+  readLoreStatus,
+  unreadableStoreStatus,
+  type LoreStatusOptions,
+} from "../core/status.js";
 
 /**
  * Start the lore MCP server over stdio against the resolved store. This is the
@@ -25,6 +32,18 @@ export async function startStdioServer(): Promise<void> {
         return write(db);
       } finally {
         db.close();
+      }
+    },
+    readStatus: (options: LoreStatusOptions) => {
+      if (!existsSync(dbPath)) return missingStoreStatus(dbPath, options);
+      let db: ReturnType<typeof openStoreReadonly> | undefined;
+      try {
+        db = openStoreReadonly(dbPath);
+        return readLoreStatus(db, options, dbPath);
+      } catch {
+        return unreadableStoreStatus(dbPath, options);
+      } finally {
+        db?.close();
       }
     },
   });

@@ -33,13 +33,20 @@ if (!Array.isArray(packet.selectedEvidence)) issues.push("selectedEvidence must 
 if (!Array.isArray(packet.gaps)) issues.push("gaps must be an array");
 
 const labels = new Set(["current", "recent", "stale", "unknown"]);
+const syncStatuses = new Set(["fresh", "possibly_stale", "unknown"]);
 for (const [index, evidence] of (packet.selectedEvidence ?? []).entries()) {
   for (const field of [
     "claim",
     "messageId",
     "sessionId",
+    "sourceFileId",
     "source",
-    "timestamp",
+    "messageTimestamp",
+    "indexedAt",
+    "ageFromMessage",
+    "ageFromIndex",
+    "syncStatus",
+    "staleReason",
     "freshness",
     "excerpt",
   ]) {
@@ -47,6 +54,12 @@ for (const [index, evidence] of (packet.selectedEvidence ?? []).entries()) {
   }
   if (!labels.has(evidence.freshness)) {
     issues.push(`selectedEvidence[${index}] freshness must be current/recent/stale/unknown`);
+  }
+  if (!syncStatuses.has(evidence.syncStatus)) {
+    issues.push(`selectedEvidence[${index}] syncStatus must be fresh/possibly_stale/unknown`);
+  }
+  if (evidence.syncStatus !== "fresh" && !evidence.staleReason) {
+    issues.push(`selectedEvidence[${index}] staleReason required unless syncStatus is fresh`);
   }
 }
 

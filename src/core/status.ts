@@ -15,7 +15,8 @@ export type LoreStatusState =
   | "unreadable_store"
   | "newer_store"
   | "stale_schema"
-  | "source_absent";
+  | "source_absent"
+  | "possibly_unsynced";
 
 export interface LoreStatusSourceSummary {
   source: string;
@@ -142,20 +143,24 @@ export function readLoreStatus(
     )
     .get(...params) as StatusRow;
 
-  const sources = db
-    .prepare(
-      `SELECT sf.source AS source,
-              COUNT(*) AS message_count,
-              COUNT(DISTINCT m.session_id) AS session_count,
-              MAX(m.timestamp) AS latest_message_timestamp,
-              MAX(sf.indexed_at) AS latest_indexed_at
-       FROM messages m
-       LEFT JOIN source_files sf ON sf.source_file_id = m.source_file_id
-       ${where}
-       GROUP BY sf.source
-       ORDER BY message_count DESC, source ASC`,
-    )
-    .all(...params) as SourceRow[];
+  if (
+    counts.message_count === 0 &&
+    options.since !== undefined &&
+    hasMessagesOutsideWindow(db, options)
+  ) {
+    return {
+      ...baseStatus(
+        "possibly_unsynced",
+        storePath,
+        schemaVersion,
+        options,
+        "The scoped store has older matching messages but none in the requested time window. Run `lore sync` or an index hook if you expected recent work.",
+      ),
+      sources: sourceSummaries(db, { source: options.source, project: options.project }),
+    };
+  }
+
+  const sources = sourceSummaries(db, options);
 
   return {
     ok: true,
@@ -166,13 +171,7 @@ export function readLoreStatus(
     supportedSchemaVersion: SCHEMA_VERSION,
     messageCount: counts.message_count,
     sessionCount: counts.session_count,
-    sources: sources.map((row) => ({
-      source: row.source,
-      messageCount: row.message_count,
-      sessionCount: row.session_count,
-      latestMessageTimestamp: row.latest_message_timestamp,
-      latestIndexedAt: row.latest_indexed_at,
-    })),
+    sources,
     recovery: null,
   };
 }
@@ -237,6 +236,49 @@ function statusWhere(options: LoreStatusOptions): { where: string; params: strin
   }
 
   return { where: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "", params };
+}
+
+function scopeWhereWithoutTime(options: LoreStatusOptions): { where: string; params: string[] } {
+  return statusWhere({ source: options.source, project: options.project });
+}
+
+function hasMessagesOutsideWindow(db: Store, options: LoreStatusOptions): boolean {
+  const { where, params } = scopeWhereWithoutTime(options);
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM messages m
+       LEFT JOIN source_files sf ON sf.source_file_id = m.source_file_id
+       ${where}`,
+    )
+    .get(...params) as { count: number };
+  return row.count > 0;
+}
+
+function sourceSummaries(db: Store, options: LoreStatusOptions): LoreStatusSourceSummary[] {
+  const { where, params } = statusWhere(options);
+  const rows = db
+    .prepare(
+      `SELECT sf.source AS source,
+              COUNT(*) AS message_count,
+              COUNT(DISTINCT m.session_id) AS session_count,
+              MAX(m.timestamp) AS latest_message_timestamp,
+              MAX(sf.indexed_at) AS latest_indexed_at
+       FROM messages m
+       LEFT JOIN source_files sf ON sf.source_file_id = m.source_file_id
+       ${where}
+       GROUP BY sf.source
+       ORDER BY message_count DESC, source ASC`,
+    )
+    .all(...params) as SourceRow[];
+
+  return rows.map((row) => ({
+    source: row.source,
+    messageCount: row.message_count,
+    sessionCount: row.session_count,
+    latestMessageTimestamp: row.latest_message_timestamp,
+    latestIndexedAt: row.latest_indexed_at,
+  }));
 }
 
 function databaseName(db: Store): string {

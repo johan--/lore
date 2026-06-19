@@ -35,7 +35,7 @@ Use labels from `references/freshness.md`:
 
 ## Failure Recovery
 
-If status says `missing_store`, `empty_store`, `source_absent`, `newer_store`, `stale_schema`, or `unreadable_store`, stop and report the status plus recovery. If search returns zero hits, broaden once, try one synonym query, and report `gaps` instead of pretending.
+If status says `missing_store`, `empty_store`, `source_absent`, `possibly_unsynced`, `newer_store`, `stale_schema`, or `unreadable_store`, stop and report the status plus recovery. If search returns zero hits, broaden once, try one synonym query, and report `gaps` instead of pretending.
 
 ## References
 
