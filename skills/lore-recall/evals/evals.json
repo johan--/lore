@@ -1,0 +1,53 @@
+{
+  "skill_name": "lore-recall",
+  "evals": [
+    {
+      "id": "fuzzy-query-planning",
+      "prompt": "Use Lore to answer what we decided about bounded recall packets when the user only says 'that memory packet thing'.",
+      "expected_output": "Creates query variants, checks status, drills down through ids, and emits a cited evidence packet.",
+      "assertions": [
+        {
+          "id": "has-query-plan",
+          "text": "Includes multiple query variants and why they are used."
+        },
+        {
+          "id": "cites-real-ids",
+          "text": "Requires message/session ids from Lore output before making claims."
+        }
+      ]
+    },
+    {
+      "id": "last-session-in-repo",
+      "prompt": "Recall what happened in the last Codex session for this repo without dumping the whole session.",
+      "expected_output": "Uses status/sessions/search and bounded session --around or context windows, not full-session dumps.",
+      "assertions": [
+        { "id": "no-dump", "text": "Avoids unbounded session dumps." },
+        {
+          "id": "bounded-drilldown",
+          "text": "Uses context or session --around with bounded windows."
+        }
+      ]
+    },
+    {
+      "id": "failed-empty-retrieval",
+      "prompt": "Use Lore to find a decision that is not present in the scoped store.",
+      "expected_output": "Reports retrieval gaps, broadening attempts, and next queries instead of inventing an answer.",
+      "assertions": [
+        { "id": "reports-gaps", "text": "Includes explicit gaps/no-matches." },
+        { "id": "no-fabrication", "text": "Does not claim unsupported memory." }
+      ]
+    },
+    {
+      "id": "freshness-warning",
+      "prompt": "Use Lore to answer from an old transcript that may conflict with current files.",
+      "expected_output": "Labels evidence stale or unknown and says current files/tests outrank transcripts.",
+      "assertions": [
+        { "id": "freshness-label", "text": "Applies a freshness label to evidence." },
+        {
+          "id": "truth-hierarchy",
+          "text": "States current artifacts beat stale transcript claims."
+        }
+      ]
+    }
+  ]
+}

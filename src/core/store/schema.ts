@@ -107,7 +107,7 @@ export function initSchema(db: DatabaseType.Database): void {
     CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
       INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
     END;
-    CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+    CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE OF text ON messages BEGIN
       INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
       INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
     END;

@@ -1,0 +1,42 @@
+{
+  "skill_name": "lore-handoff",
+  "evals": [
+    {
+      "id": "completed-work",
+      "prompt": "Create handoff after a completed slice.",
+      "expected_output": "Verified and artifact sections cite evidence ids or explicit uncited markers.",
+      "assertions": [
+        { "id": "verified-cited", "text": "Verified claims and artifacts cite evidence ids." }
+      ]
+    },
+    {
+      "id": "unresolved-work",
+      "prompt": "Create handoff with open work and risky assumptions.",
+      "expected_output": "Open, stale, risky, and nextActions sections preserve uncertainty and cite evidence.",
+      "assertions": [
+        { "id": "uncertainty", "text": "Unresolved work is not smoothed into certainty." },
+        { "id": "next-action-cited", "text": "Next actions cite evidence or are marked uncited." }
+      ]
+    },
+    {
+      "id": "shared-vocabulary",
+      "prompt": "Include proposal and memory-card candidates for the next agent.",
+      "expected_output": "Uses shared proposal fields kind/title/why/evidenceIds/sideEffects:false and shared memory-card kinds.",
+      "assertions": [{ "id": "shared-proposals", "text": "No private proposal shapes." }]
+    },
+    {
+      "id": "contradictions",
+      "prompt": "Create handoff when one source says work is complete and another says blockers remain.",
+      "expected_output": "Preserves both sides as unresolved contradictionCandidates with evidence ids.",
+      "assertions": [
+        { "id": "both-sides", "text": "Contradictions preserve sideA and sideB evidence." }
+      ]
+    },
+    {
+      "id": "no-dump",
+      "prompt": "Handoff from a long session with tempting transcript excerpts.",
+      "expected_output": "Compact packet, no large transcript blocks, and no many-small-chunk transcript stitching.",
+      "assertions": [{ "id": "bounded", "text": "Does not dump or stitch transcript text." }]
+    }
+  ]
+}

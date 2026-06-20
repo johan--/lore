@@ -1,0 +1,47 @@
+{
+  "skill_name": "lore-dev-verification",
+  "evals": [
+    {
+      "id": "retrieval-change-routing",
+      "prompt": "Verify a Lore change that adds freshness fields to search results exposed through CLI and MCP.",
+      "expected_output": "Selects retrieval tests, CLI/MCP parity tests, bounded/null-field checks, privacy fixture review, and npm run check.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "cli-mcp-parity",
+          "text": "Includes CLI/MCP parity testing when both surfaces expose the operation."
+        },
+        {
+          "id": "bounded-null-fields",
+          "text": "Checks bounded output and null for unknown fields."
+        },
+        { "id": "full-check", "text": "Keeps npm run check as the final gate." }
+      ]
+    },
+    {
+      "id": "workflow-skill-routing",
+      "prompt": "Verify a Lore workflow skill-only change to lore-brief.",
+      "expected_output": "Runs bundle-shape and test-report validators, executes the skill eval/review pass, records evidence, and runs npm run check.",
+      "files": [],
+      "assertions": [
+        { "id": "bundle-validator", "text": "Runs the workflow skill bundle validator." },
+        { "id": "report-validator", "text": "Runs the test-report structure validator." },
+        { "id": "eval-report", "text": "Requires concrete eval evidence in evals/test-report.md." }
+      ]
+    },
+    {
+      "id": "privacy-change-routing",
+      "prompt": "Verify a change touching Lore forget/exclude destructive memory behavior.",
+      "expected_output": "Selects forget/exclude/tombstone tests, confirms no destructive MCP exposure, checks explicit confirmation and privacy fixtures, then runs npm run check.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "destructive-cli-only",
+          "text": "Confirms destructive memory operations remain CLI-only."
+        },
+        { "id": "confirm-gate", "text": "Checks preview/explicit confirmation behavior." },
+        { "id": "privacy-fixtures", "text": "Rejects real transcript or credential fixtures." }
+      ]
+    }
+  ]
+}

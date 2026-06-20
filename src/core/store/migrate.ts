@@ -1,10 +1,11 @@
 import type DatabaseType from "better-sqlite3";
+import { contentHash } from "./content-hash.js";
 
 /**
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 export class StoreSchemaTooNewError extends Error {
   constructor(
@@ -54,7 +55,63 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
         )
       `),
   },
+  {
+    // Recurrence-compatible content hashing. This preserves the schema contract
+    // introduced on the adapters branch without changing the primary transcript
+    // write model: hashes are derived from message text, nullable for short or
+    // injected-only messages, and indexed for future ranking/read paths.
+    to: 4,
+    up: (db) => {
+      if (!hasColumn(db, "messages", "content_hash")) {
+        db.exec("ALTER TABLE messages ADD COLUMN content_hash TEXT");
+      }
+      db.exec("CREATE INDEX IF NOT EXISTS idx_messages_content_hash ON messages (content_hash)");
+      narrowMessageUpdateTrigger(db);
+      backfillContentHash(db);
+    },
+  },
+  {
+    // Recompute content_hash with the widened injected-block strip list used by
+    // Codex and other non-Claude harnesses. The trigger is scoped to text-only
+    // updates, so this touches the derived column without rebuilding FTS.
+    to: 5,
+    up: (db) => {
+      narrowMessageUpdateTrigger(db);
+      backfillContentHash(db);
+    },
+  },
 ];
+
+function hasColumn(db: DatabaseType.Database, table: string, column: string): boolean {
+  const rows = db.pragma(`table_info(${table})`) as { name: string }[];
+  return rows.some((row) => row.name === column);
+}
+
+function narrowMessageUpdateTrigger(db: DatabaseType.Database): void {
+  db.exec(`
+    DROP TRIGGER IF EXISTS messages_au;
+    CREATE TRIGGER messages_au AFTER UPDATE OF text ON messages BEGIN
+      INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+      INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+    END;
+  `);
+}
+
+function backfillContentHash(db: DatabaseType.Database): void {
+  const page = db.prepare(
+    "SELECT rowid AS rid, text FROM messages WHERE rowid > ? ORDER BY rowid LIMIT 1000",
+  );
+  const update = db.prepare("UPDATE messages SET content_hash = ? WHERE rowid = ?");
+  let lastRowid = 0;
+  for (;;) {
+    const rows = page.all(lastRowid) as { rid: number; text: string }[];
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      update.run(contentHash(row.text), row.rid);
+      lastRowid = row.rid;
+    }
+  }
+}
 
 /** Read the store's current schema version (`PRAGMA user_version`). */
 export function getSchemaVersion(db: DatabaseType.Database): number {

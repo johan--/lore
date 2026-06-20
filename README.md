@@ -164,12 +164,25 @@ lore context <message-id>                  # 5 before / 5 after, anchor flagged
 lore session <session-id> --around <message-id>   # jump to that spot, read forward
 ```
 
-Other commands round out the loop — `lore sessions` (recent conversations),
-`lore timeline` (activity by day/hour), and `lore push` (add a live session from a
-JSON batch on stdin). Add `--json` to any of them for a machine-readable envelope.
+Other commands round out the loop — `lore status` (freshness/health),
+`lore sessions` (recent conversations), `lore timeline` (activity by day/hour),
+and `lore push` (add a live session from a JSON batch on stdin). Add `--json` to
+any of them for a machine-readable envelope.
 Every search filter the MCP tools accept works here too (`--project`, `--source`,
 `--session`, `--branch`, `--agent`, `--skill`, `--tool`, `--role`, `--model`,
 `--since`, `--until`, `--limit`).
+
+Before asking for a current brief or handoff, check freshness:
+
+```bash
+lore status --json --source codex --project "$PWD"
+```
+
+`schemaVersion` and `supportedSchemaVersion` tell you whether this build can
+write to the store. Read-only search may still work against a newer compatible
+store, but sync/index/push only run when the installed build supports the store
+schema. In a source checkout, run `npm run build` before trusting the global
+`lore` shim; npm installs should update or reinstall the package.
 
 **CLI ⇄ MCP parity is proven, not asserted.** Each `lore … --json` envelope is
 byte-for-byte identical to the matching MCP tool's response, verified by a parity
@@ -185,6 +198,7 @@ faithful stand-in for the server:
 | session page | `lore session` | `get_session` | `{ messages, nextCursor }` |
 | session list | `lore sessions` | `list_sessions` | `{ count, sessions }` |
 | activity | `lore timeline` | `timeline` | `{ buckets }` |
+| status/freshness | `lore status` | `status` | status envelope |
 | write | `lore push` | `push` | result / `{ error, detail }` |
 
 The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
@@ -192,6 +206,28 @@ loop — when to search, which id to spend, and how to drill down instead of
 dumping. It's self-bootstrapping: its `references/setup/index.md` covers getting history
 indexed in the first place (install, index/backfill a harness, write an adapter,
 or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
+
+
+## Agent Workflow Skills
+
+The low-level `skills/lore/` skill teaches agents how to install Lore, index transcripts, search memory, drill into message ids, and use the MCP server when a harness supports it. The workflow pack sits above that substrate:
+
+- `lore:recall` maps to `skills/lore-recall/`. It plans bounded retrieval, checks `lore status --json`, labels freshness, drills into context windows, and emits cited evidence packets instead of transcript dumps.
+- `lore:brief` maps to `skills/lore-brief/`. It defaults to the rolling last 24 hours, summarizes completed/open work, and proposes follow-up skills, jobs, issues, fixes, tasks, memory cards, or wiki updates without performing them.
+- `lore:handoff` maps to `skills/lore-handoff/`. It creates compact continuation packets with verified/open/stale/risky sections, artifacts, shared proposal objects, memory-card candidates, contradiction candidates, and next actions.
+- `lore:dev-verification` maps to `skills/lore-dev-verification/`. It is the project-specific verification gate for Lore repo changes: CLI/MCP parity, store compatibility, adapter fidelity, privacy/destructive-memory behavior, package smoke, and workflow-skill eval proof.
+
+These are installable skill bundles, not one-file prompt snippets. Each workflow skill includes `SKILL.md`, references, examples, eval specs, validator scripts where structure is deterministic, and `evals/test-report.md`. A workflow skill is not complete until its test report proves the eval/review pass ran and the bundle validator passes.
+
+There is no universal plugin wrapper in this release. A future plugin could bundle names such as `lore:recall`, `lore:brief`, and `lore:handoff`, but today the shipped surface is the package `skills/` tree plus the `lore` CLI/MCP substrate. Workflow skills may propose actions; they must not create jobs, edit prompts, update wiki pages, create tasks, modify code, or run destructive memory operations unless the user explicitly asks for that next step.
+
+Packaging proof lives in:
+
+```bash
+npm run package:smoke
+```
+
+That smoke builds the CLI, preserves executable mode for `dist/cli/lore.js`, validates package dry-run metadata, packs a real tarball, reads the workflow skill folders from the packaged tree, checks non-hollow test-report headings, and verifies the packaged CLI help can run with dependencies present.
 
 ## 🔌 Serve it to your client
 
@@ -212,15 +248,17 @@ or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
 
 ### What your agent can do
 
-| Tool            | What it does                                                          |
-| --------------- | -------------------------------------------------------------------- |
+| Tool            | What it does                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| `status`        | Store health/freshness, schema version, source/project scoped counts. |
 | `search_memory` | Keyword search across every transcript, ranked by bm25, with filters. |
-| `find_relevant` | Like `search_memory`, but blends relevance with recency.             |
-| `get_message`   | Fetch one message by id (`full=true` returns the un-elided text).    |
-| `get_context`   | The neighbor window around an anchor message.                        |
-| `get_session`   | One logical session as a folded, paginated timeline.                 |
-| `list_sessions` | Session rollups (counts, first / last activity), filterable.         |
-| `timeline`      | Bucketed activity over time, by day or hour.                         |
+| `find_relevant` | Like `search_memory`, but blends relevance with recency.              |
+| `get_message`   | Fetch one message by id (`full=true` returns the un-elided text).     |
+| `get_context`   | The neighbor window around an anchor message.                         |
+| `get_session`   | One logical session as a folded, paginated timeline.                  |
+| `list_sessions` | Session rollups (counts, first / last activity), filterable.          |
+| `timeline`      | Bucketed activity over time, by day or hour.                          |
+| `push`          | Write one normalized live JSON batch, matching CLI `lore push`.       |
 
 Every search tool takes the same dimension filters: `project`, `branch`,
 `source`, `agent`, `skill`, `tool`, `role`, `model`, `since`, `until`, `limit`.

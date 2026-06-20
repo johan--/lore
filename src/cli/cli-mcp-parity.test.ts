@@ -7,8 +7,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { runCli } from "./lore.js";
 import { createLoreServer } from "../mcp/server.js";
-import { openStore } from "../core/store/open-store.js";
+import { openStore, openStoreReadonly } from "../core/store/open-store.js";
 import { pushRecords } from "../core/ingest/push.js";
+import { SCHEMA_VERSION } from "../core/store/migrate.js";
+import { readLoreStatus, type LoreStatusOptions } from "../core/status.js";
 
 /**
  * Proves the server-free CLI is a faithful stand-in for the MCP server: for one
@@ -109,6 +111,28 @@ async function cliJson(argv: string[]): Promise<unknown> {
   }
 }
 
+/** Run a CLI command expected to succeed, keeping stderr in the assertion diff. */
+async function successfulCliJson(argv: string[]): Promise<unknown> {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const out = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+    stdout.push(String(chunk));
+    return true;
+  });
+  const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+    stderr.push(String(chunk));
+    return true;
+  });
+  try {
+    const code = await runCli(argv);
+    expect({ code, stderr: stderr.join("") }).toEqual({ code: 0, stderr: "" });
+    return JSON.parse(stdout.join(""));
+  } finally {
+    out.mockRestore();
+    err.mockRestore();
+  }
+}
+
 /** Run a CLI command with stdin and parse its single JSON stdout payload. */
 async function cliJsonStdin(argv: string[], input: string): Promise<unknown> {
   const writes: string[] = [];
@@ -146,7 +170,91 @@ async function mcpJson(name: string, args: Record<string, unknown>): Promise<unk
   return JSON.parse(block?.text ?? "");
 }
 
+async function mcpJsonWithStdioStoreAccess(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const server = createLoreServer({
+    withReadStore: (read) => {
+      const db = openStoreReadonly(dbPath);
+      try {
+        return read(db);
+      } finally {
+        db.close();
+      }
+    },
+    withWriteStore: (write) => {
+      const db = openStore(dbPath);
+      try {
+        return write(db);
+      } finally {
+        db.close();
+      }
+    },
+    readStatus: (options: LoreStatusOptions) => {
+      const db = openStoreReadonly(dbPath);
+      try {
+        return readLoreStatus(db, options, dbPath);
+      } finally {
+        db.close();
+      }
+    },
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "parity", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  const result = (await client.callTool({ name, arguments: args })) as {
+    content: { type: string; text?: string }[];
+  };
+  await client.close();
+  const block = result.content.find((c) => c.type === "text");
+  return JSON.parse(block?.text ?? "");
+}
+
 describe("CLI ⇄ MCP envelope parity", () => {
+  it("status: `lore status --json` == status", async () => {
+    const cli = await successfulCliJson(["status", "--json"]);
+    const mcp = await mcpJson("status", {});
+    expect(cli).toEqual(mcp);
+  });
+
+  it("status: scoped `lore status --json` == scoped status", async () => {
+    const cli = await successfulCliJson([
+      "status",
+      "--json",
+      "--source",
+      "claude-code",
+      "--project",
+      "/repo",
+      "--since",
+      "2026-05-10T00:00:00.000Z",
+      "--until",
+      "2026-05-12T00:00:00.000Z",
+    ]);
+    const mcp = await mcpJson("status", {
+      source: "claude-code",
+      project: "/repo",
+      since: "2026-05-10T00:00:00.000Z",
+      until: "2026-05-12T00:00:00.000Z",
+    });
+    expect(cli).toEqual(mcp);
+  });
+
+  it("status: newer read-compatible store matches stdio MCP access", async () => {
+    const db = openStore(dbPath);
+    db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
+    db.close();
+
+    const cli = await successfulCliJson(["status", "--json", "--source", "claude-code"]);
+    const mcp = await mcpJsonWithStdioStoreAccess("status", { source: "claude-code" });
+    expect(cli).toEqual(mcp);
+    expect(cli).toMatchObject({
+      status: "ready",
+      schemaVersion: SCHEMA_VERSION + 1,
+      supportedSchemaVersion: SCHEMA_VERSION,
+    });
+  });
+
   it("search_memory: `lore search --json` == search_memory", async () => {
     const cli = await cliJson(["search", "alamo", "--json"]);
     const mcp = await mcpJson("search_memory", { query: "alamo" });

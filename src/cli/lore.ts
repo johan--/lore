@@ -21,6 +21,14 @@ import { getContext } from "../core/retrieval/get-context.js";
 import { getSession, getSessionWindow } from "../core/retrieval/get-session.js";
 import { timeline } from "../core/retrieval/timeline.js";
 import { pushRecords } from "../core/ingest/push.js";
+import {
+  missingStoreStatus,
+  readLoreStatus,
+  statusFilters,
+  unreadableStoreStatus,
+  type LoreStatusEnvelope,
+  type LoreStatusOptions,
+} from "../core/status.js";
 import { elide } from "../core/budget.js";
 import { parseSearchArgs, parseSessionsArgs } from "./parse-search-args.js";
 import {
@@ -78,6 +86,9 @@ Usage:
                                      tree (~/.codex/sessions, archived fallback). This
                                      is the incremental command for cron/launchd/live
                                      catch-up when Codex has no lifecycle hook.
+  lore status [filters] [--json]
+                                     Read-only store health/status. Filters:
+                                     --source --project --since --until
   lore search <query> [filters] [--relevant] [--json]
                                      Keyword search the store WITHOUT the MCP server.
                                      Filters: --project --branch --session --source --agent
@@ -125,6 +136,21 @@ Usage:
                                      and a non-zero exit when the batch is malformed.
   lore serve                       Start the MCP server over stdio
   lore help                        Show this help
+
+Common workflows:
+  Recall past work:     lore search "decision words" --project <repo> --relevant
+                        then spend the returned ids with lore get/context/session.
+  Freshen Codex memory: npm run build in a source checkout, then lore sync codex.
+                        For npm installs, reinstall/update Lore instead of relying
+                        on an old global dist/ build.
+  Check health first:   lore status --json --source codex --project <repo>
+                        Inspect schemaVersion and supportedSchemaVersion. Read
+                        paths may work on newer compatible stores, but write
+                        paths only run when this build supports the store schema.
+  Workflow skills:      lore-recall, lore-brief, lore-handoff, and
+                        lore-dev-verification are packaged skill bundles built on
+                        this CLI substrate. Briefs/handoffs should stop on stale
+                        status instead of pretending current memory is complete.
 
 Env:
   LORE_DB        Path to the SQLite store (default: ~/.lore/lore.db)
@@ -212,6 +238,45 @@ function parseSyncArgs(rest: string[]): {
   }
 
   return { source, home, noRedact };
+}
+
+function parseStatusArgs(rest: string[]): { opts: LoreStatusOptions; json: boolean } {
+  const opts: LoreStatusOptions = {};
+  let json = false;
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === undefined) continue;
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      const name = arg.slice(2);
+      const value = rest[i + 1];
+      if (
+        ["source", "project", "since", "until"].includes(name) &&
+        value !== undefined &&
+        !value.startsWith("--")
+      ) {
+        (opts as Record<string, string>)[name] = value;
+        i++;
+        continue;
+      }
+      if (value !== undefined && !value.startsWith("--")) i++;
+    }
+  }
+  return { opts, json };
+}
+
+function renderStatus(status: LoreStatusEnvelope, json: boolean): string {
+  if (json) return JSON.stringify(status, null, 2) + "\n";
+  const scope = Object.entries(statusFilters(status.filters))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  const header = `Lore status: ${status.status}${scope ? ` (${scope})` : ""}\n`;
+  const counts = `messages: ${status.messageCount}\nsessions: ${status.sessionCount}\n`;
+  const recovery = status.recovery ? `recovery: ${status.recovery}\n` : "";
+  return header + counts + recovery;
 }
 
 function withReadonlyStore<T>(
@@ -332,6 +397,25 @@ export async function runCli(argv: string[]): Promise<number> {
       if (!result.ok) return 1;
       process.stdout.write(result.value);
       return 0;
+    }
+    case "status": {
+      const { opts, json } = parseStatusArgs(rest);
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        process.stdout.write(renderStatus(missingStoreStatus(dbPath, opts), json));
+        return 0;
+      }
+      let db: Store | undefined;
+      try {
+        db = openStoreReadonly(dbPath);
+        process.stdout.write(renderStatus(readLoreStatus(db, opts, dbPath), json));
+        return 0;
+      } catch {
+        process.stdout.write(renderStatus(unreadableStoreStatus(dbPath, opts), json));
+        return 0;
+      } finally {
+        db?.close();
+      }
     }
     case "sessions": {
       const { opts, json } = parseSessionsArgs(rest);
