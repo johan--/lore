@@ -5,9 +5,9 @@
 **Any Agent. Any Session. Any Turn. Anytime.**
 
 The session you ran in Claude Code this morning, Openclaw can pull up this afternoon.
-The gnarly debugging thread Cursor worked through last week, Hermes can read
+The debugging thread Cursor worked through last week, Hermes can read
 like it was sitting right there. Lore gives all of your coding agents one shared
-memory: across every tool, across every session, and it never expires. 
+memory: across every tool, across every session, and it never expires.
 
 That is the part most "agent memory" misses. Other tools remember things for one
 agent, inside one app. Lore makes every session any of your agents has ever had
@@ -26,6 +26,41 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 *Inspired by [RLM](https://arxiv.org/abs/2512.24601)*
 
+## v0.2.0 release
+
+This release turns Lore from a search box over old transcripts into a small
+workflow substrate for agents that have to continue real work:
+
+- **Schema 5 write support.** Current installs can read and write the live store
+  again. `lore status --json` reports both `schemaVersion` and
+  `supportedSchemaVersion`, so stale global installs are obvious before sync,
+  index, or push writes fail.
+- **Freshness checks.** `lore status` tells an agent whether a source/project
+  window is ready, missing, stale, or possibly unsynced before it writes a brief
+  or handoff from incomplete memory.
+- **Live Codex sync.** `lore sync codex` indexes the active
+  `~/.codex/sessions` tree incrementally, with archived sessions only as a
+  compatibility fallback.
+- **Workflow skills.** The npm package now ships `lore-recall`, `lore-brief`,
+  `lore-handoff`, and `lore-dev-verification` alongside the base `lore` skill.
+  They include references, examples, eval specs, validators, and committed test
+  reports.
+- **Package smoke proof.** `npm run package:smoke` builds, packs, unpacks, and
+  validates the real tarball so README, help text, skill folders, executable
+  mode, and package metadata are checked together.
+
+Already installed? Refresh the global command before testing any schema or sync
+behavior:
+
+```bash
+npm install -g @jordanhindo/lore@latest
+lore help
+lore status --json
+```
+
+If your shell cached the old path, open a new terminal or run `hash -r` and retry
+`lore help`.
+
 ## ✨ Why you'll want it
 
 - 🔀 **One memory, every agent.** Claude Code, Codex, openclaw, Cursor, and
@@ -43,13 +78,13 @@ https://github.com/user-attachments/assets/b5c0f077-47da-4502-bf78-2ce08abf034f
 
 Lore sets itself up. Drop the blurb below into any coding agent. It installs
 Lore, indexes your own history, and proves search works before it calls itself
-done — all server-free, no MCP registration required.
+done. It is server-free by default, with no MCP registration required.
 
 ```
 Set up Lore (full-fidelity session memory) for yourself. Install it with
-`npm install -g @jordanhindo/lore`, then run `lore setup` to index my
+`npm install -g @jordanhindo/lore@latest`, then run `lore setup` to index my
 history and self-verify. Prove it by running `lore search` for a word from
-a past session and showing me a hit. The MCP server is optional — only
+a past session and showing me a hit. The MCP server is optional: only
 register it (`lore serve`) if you specifically want MCP tool calls instead
 of the CLI; if you do, tell me the reload step I have to do.
 ```
@@ -63,7 +98,7 @@ next time you ask it to recall something.
 
 ## 🛠️ Install it yourself
 
-**Recommended — install the skill (it sets up the rest):**
+**Recommended: install the skill. It sets up the rest.**
 
 ```bash
 npx skills add jordanhindo/lore
@@ -72,19 +107,34 @@ npx skills add jordanhindo/lore
 This drops the bundled **`lore` skill** into your agent (`~/.claude/skills/`). The
 skill is self-bootstrapping: the next time you ask your agent to "remember" /
 "recall" something or to "set up lore", it reads its own `references/setup/index.md`,
-installs the `lore` CLI, indexes your history, and proves search works — no MCP
+installs the `lore` CLI, indexes your history, and proves search works. No MCP
 server required. One command installs the whole thing.
 
 **Or install the CLI directly:**
 
 ```bash
-npm install -g @jordanhindo/lore   # puts the `lore` command on your PATH
+npm install -g @jordanhindo/lore@latest   # puts the `lore` command on your PATH
 ```
 
-Requires Node 22+. That's the whole install. `lore setup` (below) takes it from
-here. If `npm install` chokes on `better-sqlite3`, or `lore` isn't found
-afterward, the [Troubleshooting](AGENT-ONBOARD.md#troubleshooting-when-step-1-or-2-fails)
-section has you covered (Windows included).
+Requires Node 22+. That's the whole install. `lore setup` takes it from here. If
+`npm install` chokes on `better-sqlite3`, or `lore` isn't found afterward, the
+[Troubleshooting](AGENT-ONBOARD.md#troubleshooting-when-step-1-or-2-fails)
+section has you covered, Windows included.
+
+### Upgrade the global CLI
+
+The global `lore` command is just an npm binary shim. If you were running an old
+package, update it before you trust `lore sync`, `lore index`, or `lore push`:
+
+```bash
+npm install -g @jordanhindo/lore@latest
+lore help
+lore status --json
+```
+
+If `lore status --json` shows a store `schemaVersion` higher than
+`supportedSchemaVersion`, your command is still stale. Reinstall the package,
+open a fresh shell if needed, then rerun `lore status --json`.
 
 ### From source
 
@@ -146,11 +196,11 @@ lore sync codex
 It indexes `~/.codex/sessions` incrementally, with `~/.codex/archived_sessions`
 only as a compatibility fallback.
 
-## 💻 Recall from the CLI — no server required
+## 💻 Recall from the CLI, no server required
 
 You don't need the MCP server to use Lore. The `lore` command opens the SQLite
 store directly, so **search, read-back, navigation, and writing all work
-server-free** — anywhere you have a shell. The MCP server (below) is just one more
+server-free** anywhere you have a shell. The MCP server below is just one more
 reader of the same store; nothing here depends on it.
 
 The loop is always the same: **drill down, never dump.** A session can be millions
@@ -164,7 +214,7 @@ lore context <message-id>                  # 5 before / 5 after, anchor flagged
 lore session <session-id> --around <message-id>   # jump to that spot, read forward
 ```
 
-Other commands round out the loop — `lore status` (freshness/health),
+Other commands round out the loop: `lore status` (freshness/health),
 `lore sessions` (recent conversations), `lore timeline` (activity by day/hour),
 and `lore push` (add a live session from a JSON batch on stdin). Add `--json` to
 any of them for a machine-readable envelope.
@@ -182,7 +232,8 @@ lore status --json --source codex --project "$PWD"
 write to the store. Read-only search may still work against a newer compatible
 store, but sync/index/push only run when the installed build supports the store
 schema. In a source checkout, run `npm run build` before trusting the global
-`lore` shim; npm installs should update or reinstall the package.
+`lore` shim. For npm installs, run
+`npm install -g @jordanhindo/lore@latest` and check `lore status --json` again.
 
 **CLI ⇄ MCP parity is proven, not asserted.** Each `lore … --json` envelope is
 byte-for-byte identical to the matching MCP tool's response, verified by a parity
@@ -202,7 +253,7 @@ faithful stand-in for the server:
 | write | `lore push` | `push` | result / `{ error, detail }` |
 
 The bundled **`lore` skill** (`skills/lore/`) teaches an agent to drive this whole
-loop — when to search, which id to spend, and how to drill down instead of
+loop: when to search, which id to spend, and how to drill down instead of
 dumping. It's self-bootstrapping: its `references/setup/index.md` covers getting history
 indexed in the first place (install, index/backfill a harness, write an adapter,
 or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
@@ -210,16 +261,31 @@ or push), so one `npx skills add jordanhindo/lore` installs the whole thing.
 
 ## Agent Workflow Skills
 
-The low-level `skills/lore/` skill teaches agents how to install Lore, index transcripts, search memory, drill into message ids, and use the MCP server when a harness supports it. The workflow pack sits above that substrate:
+The low-level `skills/lore/` skill teaches agents how to install Lore, index
+transcripts, search memory, drill into message ids, and use the MCP server when
+a harness supports it. The workflow pack sits above that substrate:
 
 - `lore:recall` maps to `skills/lore-recall/`. It plans bounded retrieval, checks `lore status --json`, labels freshness, drills into context windows, and emits cited evidence packets instead of transcript dumps.
 - `lore:brief` maps to `skills/lore-brief/`. It defaults to the rolling last 24 hours, summarizes completed/open work, and proposes follow-up skills, jobs, issues, fixes, tasks, memory cards, or wiki updates without performing them.
 - `lore:handoff` maps to `skills/lore-handoff/`. It creates compact continuation packets with verified/open/stale/risky sections, artifacts, shared proposal objects, memory-card candidates, contradiction candidates, and next actions.
 - `lore:dev-verification` maps to `skills/lore-dev-verification/`. It is the project-specific verification gate for Lore repo changes: CLI/MCP parity, store compatibility, adapter fidelity, privacy/destructive-memory behavior, package smoke, and workflow-skill eval proof.
 
-These are installable skill bundles, not one-file prompt snippets. Each workflow skill includes `SKILL.md`, references, examples, eval specs, validator scripts where structure is deterministic, and `evals/test-report.md`. A workflow skill is not complete until its test report proves the eval/review pass ran and the bundle validator passes.
+These are installable skill bundles, not one-file prompt snippets. Each workflow
+skill includes `SKILL.md`, references, examples, eval specs, validator scripts
+where structure is deterministic, and `evals/test-report.md`. A workflow skill is
+not complete until its test report proves the eval/review pass ran and the bundle
+validator passes.
 
-There is no universal plugin wrapper in this release. A future plugin could bundle names such as `lore:recall`, `lore:brief`, and `lore:handoff`, but today the shipped surface is the package `skills/` tree plus the `lore` CLI/MCP substrate. Workflow skills may propose actions; they must not create jobs, edit prompts, update wiki pages, create tasks, modify code, or run destructive memory operations unless the user explicitly asks for that next step.
+There is no universal plugin wrapper in this release. A future plugin could
+bundle names such as `lore:recall`, `lore:brief`, and `lore:handoff`, but today
+the shipped surface is the package `skills/` tree plus the `lore` CLI/MCP
+substrate. Workflow skills may propose actions; they must not create jobs, edit
+prompts, update wiki pages, create tasks, modify code, or run destructive memory
+operations unless the user explicitly asks for that next step.
+
+When you change any part of this pack, update the matching surface too: CLI help,
+README, `AGENT-ONBOARD.md`, `skills/lore`, workflow skill docs, validators,
+examples, eval reports, and package smoke checks should move together.
 
 Packaging proof lives in:
 
@@ -227,7 +293,10 @@ Packaging proof lives in:
 npm run package:smoke
 ```
 
-That smoke builds the CLI, preserves executable mode for `dist/cli/lore.js`, validates package dry-run metadata, packs a real tarball, reads the workflow skill folders from the packaged tree, checks non-hollow test-report headings, and verifies the packaged CLI help can run with dependencies present.
+That smoke builds the CLI, preserves executable mode for `dist/cli/lore.js`,
+validates package dry-run metadata, packs a real tarball, reads the workflow
+skill folders from the packaged tree, checks non-hollow test-report headings, and
+verifies the packaged CLI help can run with dependencies present.
 
 ## 🔌 Serve it to your client
 
@@ -296,7 +365,7 @@ with `get_message`:
 ```
 
 Long messages come back elided with a marker telling the agent how to fetch the
-full text via `get_message(message_id, full=true)` — so one giant transcript can
+full text via `get_message(message_id, full=true)`, so one giant transcript can
 never blow the context window.
 
 ## 🪄 Survive compaction
@@ -316,8 +385,8 @@ and
 ## 🧩 Bring your own harness
 
 Don't see your agent on the list? `lore sample <transcript-dir>` summarizes its
-on-disk format — it recognizes JSONL, SQLite databases (read via the file header,
-never by loading the DB), and whole-file JSON — so you can see an unknown
+on-disk format. It recognizes JSONL, SQLite databases (read via the file header,
+never by loading the DB), and whole-file JSON, so you can see an unknown
 harness's shape before writing anything. The bundled **`lore` skill**'s
 `references/setup/index.md` (`skills/lore/references/setup/index.md`) walks an agent from
 "installed" to "my sessions are searchable," including writing and proving a new
@@ -332,7 +401,7 @@ receives or executes code.
 - **Credentials are redacted by default.** A conservative scrubber runs over
   message text and tool payloads before anything is written (OpenAI / GitHub /
   AWS / Slack keys, Bearer tokens, PEM private-key blocks). Everything else is
-  kept verbatim — it's your own memory. Treat the scrubber as a safety net, not
+  kept verbatim. It's your own memory. Treat the scrubber as a safety net, not
   a guarantee.
 - **Opt out with `--no-redact`** on `lore index` / `lore hook` / `lore setup`
   if you really want credentials stored verbatim too.
