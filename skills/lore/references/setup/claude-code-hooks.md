@@ -30,3 +30,32 @@ lore search "<word from the current Claude Code session>" --source claude-code
 If the search is empty, confirm `lore help` works in Claude Code's environment
 and that the hook command is reachable on `PATH`. If needed, use an absolute
 command such as `/path/to/lore hook`.
+
+## Catch-up sync fallback
+
+If hook capture is unavailable, misconfigured, or suspected stale, run the
+detected-source sync path instead:
+
+```bash
+lore sync claude-code
+```
+
+This incrementally indexes `~/.claude/projects` with the same resume/watermark
+path as `lore index`, so repeat runs are cheap and suitable for cron, launchd,
+Task Scheduler, or manual recovery.
+
+For a source checkout on macOS, a launchd fallback can run the bundled generic
+sync wrapper every minute:
+
+```xml
+<array>
+  <string>/absolute/path/to/lore/scripts/lore-sync-once.sh</string>
+  <string>claude-code</string>
+</array>
+```
+
+Run the script manually first after `npm run build`:
+
+```bash
+scripts/lore-sync-once.sh claude-code
+```

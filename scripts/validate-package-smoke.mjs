@@ -91,7 +91,9 @@ function validateHelp(help) {
   const required = [
     "lore setup",
     "lore index",
+    "lore sync <source>",
     "lore sync codex",
+    "lore sync claude-code",
     "lore status",
     "lore search",
     "lore get",
@@ -116,6 +118,11 @@ function validatePackMetadata(meta, label) {
   const bin = files.get("dist/cli/lore.js");
   assert(bin !== undefined, `${label}: dist/cli/lore.js missing from package`);
   assert(bin.mode === 0o755, `${label}: dist/cli/lore.js must be executable mode 755`);
+  for (const script of ["scripts/lore-sync-once.sh", "scripts/lore-codex-sync-once.sh"]) {
+    const entry = files.get(script);
+    assert(entry !== undefined, `${label}: ${script} missing from package`);
+    assert(entry.mode === 0o755, `${label}: ${script} must be executable mode 755`);
+  }
 
   for (const skill of workflowSkills) {
     for (const required of requiredBundlePaths) {

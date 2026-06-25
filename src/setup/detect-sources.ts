@@ -72,8 +72,20 @@ export async function detectSources(home: string = homedir()): Promise<DetectedS
  * archived_sessions only as a compatibility fallback.
  */
 export async function detectCodexSource(home: string = homedir()): Promise<DetectedSource | null> {
+  return detectSource("codex", home);
+}
+
+/**
+ * Detect the active transcript root for one known source. When a source has
+ * compatibility fallbacks (for example Codex archived sessions), locations are
+ * tried in priority order and the first discoverable tree wins.
+ */
+export async function detectSource(
+  source: Source,
+  home: string = homedir(),
+): Promise<DetectedSource | null> {
   for (const location of KNOWN_LOCATIONS) {
-    if (location.source !== "codex") continue;
+    if (location.source !== source) continue;
     const detected = await detectKnownLocation(location, home);
     if (detected) return detected;
   }

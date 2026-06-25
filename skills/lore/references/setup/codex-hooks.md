@@ -24,13 +24,17 @@ The wrapper does two things:
 
 1. Preserves Codex Desktop's bundled notification client when present at its
    standard location under `~/.codex/computer-use`.
-2. Starts `scripts/lore-codex-sync-once.sh` in the background.
+2. Starts `scripts/lore-codex-sync-once.sh` in the background. That compatibility
+   wrapper delegates to `scripts/lore-sync-once.sh codex`.
 
-`lore-codex-sync-once.sh` uses a user-specific state directory at
-`${TMPDIR:-/tmp}/lore-codex-sync-$UID` by default. Its PID-backed lock keeps a
-turn-ended notify sync and a launchd or cron sync from overlapping, and the
-wrapper writes bounded logs under that same directory. Set `LORE_CODEX_STATE_DIR`
-to choose a different lock/log location.
+`lore-sync-once.sh <source>` uses a user/source-specific state directory at
+`${TMPDIR:-/tmp}/lore-sync-<source>-$UID` by default. Its PID-backed global lock
+at `${TMPDIR:-/tmp}/lore-sync-global-$UID` keeps sync jobs for different sources
+from writing the same SQLite store concurrently. Set `LORE_SYNC_STATE_DIR` to
+choose a different source state directory and `LORE_SYNC_LOCK_DIR` to choose a
+different global lock directory. The Codex notify wrapper still writes its own
+small stdout/stderr logs under
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID`.
 
 ## Node and build requirements
 
@@ -61,7 +65,8 @@ Use an absolute repo path in the plist:
 
 ```xml
 <array>
-  <string>/absolute/path/to/lore/scripts/lore-codex-sync-once.sh</string>
+  <string>/absolute/path/to/lore/scripts/lore-sync-once.sh</string>
+  <string>codex</string>
 </array>
 ```
 
@@ -74,6 +79,6 @@ lore search "<word from the current Codex session>" --source codex
 ```
 
 If the search is empty, check
-`${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log`, which the wrapper creates
-when errors occur. Then confirm the repo has been built and run
-`scripts/lore-codex-sync-once.sh` manually.
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log` for notify-wrapper errors.
+Then confirm the repo has been built and run `scripts/lore-sync-once.sh codex`
+manually.

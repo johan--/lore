@@ -128,16 +128,17 @@ Re-running is cheap — unchanged files are skipped by the per-file resume token
 (byte offset for JSONL, last row id for databases, content hash for whole-file
 sources).
 
-Codex has on-disk JSONL transcripts but no Claude-style `transcript_path`
-lifecycle hook. For active Codex Desktop sessions, use the incremental live
-catch-up command from Codex's `notify` hook, cron, launchd, or a manual terminal:
+Some harnesses have on-disk transcripts that need periodic catch-up even when a
+hook exists or when a hook is suspected stale. Use the incremental live catch-up
+command from a harness hook, cron, launchd, task scheduler, or a manual terminal:
 
 ```bash
 lore sync codex
+lore sync claude-code
 ```
 
-It probes `~/.codex/sessions` first and uses `~/.codex/archived_sessions` only
-as a compatibility fallback.
+`codex` probes `~/.codex/sessions` first and uses `~/.codex/archived_sessions`
+only as a compatibility fallback. `claude-code` probes `~/.claude/projects`.
 
 ### 3b. New harness, on-disk transcripts — write a reviewed code adapter
 

@@ -268,6 +268,45 @@ describe("lore CLI", () => {
     db.close();
   });
 
+  it("`sync claude-code` incrementally indexes the active Claude projects tree", async () => {
+    const claudeDir = join(dir, ".claude", "projects", "myproj");
+    await mkdir(claudeDir, { recursive: true });
+    const transcript =
+      JSON.stringify({
+        type: "user",
+        uuid: "u-claude-sync",
+        parentUuid: null,
+        timestamp: "2026-06-25T12:00:00.000Z",
+        sessionId: "sess-claude-sync",
+        cwd: "/repo/claude",
+        gitBranch: "main",
+        message: { role: "user", content: "claude live sync keyword" },
+      }) + "\n";
+    await writeFile(join(claudeDir, "sess-claude-sync.jsonl"), transcript);
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const first = await runCli(["sync", "claude-code", "--home", dir]);
+    const second = await runCli(["sync", "--home", dir, "claude-code"]);
+    spy.mockRestore();
+
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("Synced claude-code");
+    expect(out).toContain("1 indexed");
+    expect(out).toContain("1 skipped");
+
+    const db = openStore(dbPath);
+    const hits = searchMemory(db, "sync", { source: "claude-code" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.project).toBe("/repo/claude");
+    db.close();
+  });
+
   it("`sync codex` fails cleanly when no Codex transcripts are present", async () => {
     const writes: string[] = [];
     const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
@@ -278,7 +317,20 @@ describe("lore CLI", () => {
     spy.mockRestore();
 
     expect(code).toBe(1);
-    expect(writes.join("")).toContain("no Codex rollout transcripts");
+    expect(writes.join("")).toContain("no codex transcripts found");
+  });
+
+  it("`sync claude-code` fails cleanly when no Claude transcripts are present", async () => {
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sync", "claude-code", "--home", dir]);
+    spy.mockRestore();
+
+    expect(code).toBe(1);
+    expect(writes.join("")).toContain("no claude-code transcripts found");
   });
 
   it("`sync codex --home` requires a directory", async () => {

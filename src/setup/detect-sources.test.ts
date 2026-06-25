@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { detectCodexSource, detectSources } from "./detect-sources.js";
+import { detectCodexSource, detectSource, detectSources } from "./detect-sources.js";
 
 describe("detectSources", () => {
   let home: string;
@@ -85,6 +85,18 @@ describe("detectSources", () => {
 
     expect(found?.source).toBe("codex");
     expect(found?.dir).toBe(join(home, ".codex", "sessions"));
+    expect(found?.fileCount).toBe(1);
+  });
+
+  it("detectSource finds claude-code under the active Claude projects tree", async () => {
+    const dir = join(home, ".claude", "projects", "myproj");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "session-a.jsonl"), "{}\n");
+
+    const found = await detectSource("claude-code", home);
+
+    expect(found?.source).toBe("claude-code");
+    expect(found?.dir).toBe(join(home, ".claude", "projects"));
     expect(found?.fileCount).toBe(1);
   });
 });
