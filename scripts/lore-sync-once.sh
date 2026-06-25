@@ -4,7 +4,7 @@ set -u
 source_name="${1:-${LORE_SYNC_SOURCE:-}}"
 if [ -z "$source_name" ]; then
   printf 'lore-sync: source required; pass one such as codex or claude-code\n' >&2
-  exit 0
+  exit 1
 fi
 
 safe_source="$(printf '%s' "$source_name" | tr -c 'A-Za-z0-9_.-' '_')"
@@ -13,9 +13,15 @@ state_dir="${LORE_SYNC_STATE_DIR:-${TMPDIR:-/tmp}/lore-sync-$safe_source-$user_i
 lock_root="${LORE_SYNC_LOCK_DIR:-${TMPDIR:-/tmp}/lore-sync-global-$user_id}"
 lock_dir="$lock_root/lock"
 
-mkdir -p "$state_dir" 2>/dev/null || exit 0
+mkdir -p "$state_dir" 2>/dev/null || {
+  printf 'lore-sync: failed to create state directory: %s\n' "$state_dir" >&2
+  exit 1
+}
 chmod 700 "$state_dir" 2>/dev/null || true
-mkdir -p "$lock_root" 2>/dev/null || exit 0
+mkdir -p "$lock_root" 2>/dev/null || {
+  printf 'lore-sync: failed to create lock root directory: %s\n' "$lock_root" >&2
+  exit 1
+}
 chmod 700 "$lock_root" 2>/dev/null || true
 
 acquire_lock() {
@@ -31,7 +37,11 @@ acquire_lock() {
     fi
   fi
 
-  rm -rf "$lock_dir" 2>/dev/null || return 1
+  stale_dir="$lock_root/stale.$$"
+  if mv "$lock_dir" "$stale_dir" 2>/dev/null; then
+    rm -rf "$stale_dir" 2>/dev/null || return 1
+  fi
+
   if mkdir "$lock_dir" 2>/dev/null; then
     printf '%s\n' "$$" > "$lock_dir/pid" 2>/dev/null || true
     return 0
@@ -45,7 +55,9 @@ if ! acquire_lock; then
 fi
 
 cleanup() {
-  rm -rf "$lock_dir" 2>/dev/null || true
+  if [ "$(cat "$lock_dir/pid" 2>/dev/null || true)" = "$$" ]; then
+    rm -rf "$lock_dir" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT INT TERM
 
@@ -76,12 +88,12 @@ find_node() {
 
 node_bin="$(find_node)" || {
   printf 'lore-sync: node not found; set LORE_NODE_BIN\n' >&2
-  exit 0
+  exit 1
 }
 
 if [ ! -f "$lore_cli" ]; then
   printf 'lore-sync: lore CLI not found at %s; run npm run build or set LORE_CLI_JS\n' "$lore_cli" >&2
-  exit 0
+  exit 1
 fi
 
 "$node_bin" "$lore_cli" sync "$source_name"
