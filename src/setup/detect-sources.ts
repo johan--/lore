@@ -25,6 +25,7 @@ const KNOWN_LOCATIONS: KnownLocation[] = [
   { source: "claude-code", segments: [".claude", "projects"] },
   { source: "codex", segments: [".codex", "sessions"], group: "codex-history" },
   { source: "codex", segments: [".codex", "archived_sessions"], group: "codex-history" },
+  { source: "hermes", segments: [".hermes"] },
 ];
 
 export interface DetectedSource {
@@ -33,6 +34,14 @@ export interface DetectedSource {
   dir: string;
   /** How many transcript files the source's adapter discovers there. */
   fileCount: number;
+}
+
+export function detectedSourceNames(): Source[] {
+  return [...new Set(KNOWN_LOCATIONS.map((location) => location.source))];
+}
+
+export function hasDetectedSourceLocation(source: Source): boolean {
+  return KNOWN_LOCATIONS.some((location) => location.source === source);
 }
 
 async function detectKnownLocation(

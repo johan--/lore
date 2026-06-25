@@ -2,7 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { detectCodexSource, detectSource, detectSources } from "./detect-sources.js";
+import Database from "better-sqlite3";
+import {
+  detectedSourceNames,
+  detectCodexSource,
+  detectSource,
+  detectSources,
+  hasDetectedSourceLocation,
+} from "./detect-sources.js";
+
+function writeHermesDb(path: string): void {
+  const db = new Database(path);
+  db.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY)");
+  db.exec("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT)");
+  db.prepare("INSERT INTO sessions (id) VALUES (?)").run("sess-hermes-detect");
+  db.prepare("INSERT INTO messages (session_id) VALUES (?)").run("sess-hermes-detect");
+  db.close();
+}
 
 describe("detectSources", () => {
   let home: string;
@@ -98,5 +114,23 @@ describe("detectSources", () => {
     expect(found?.source).toBe("claude-code");
     expect(found?.dir).toBe(join(home, ".claude", "projects"));
     expect(found?.fileCount).toBe(1);
+  });
+
+  it("detectSource finds hermes under the global Hermes root", async () => {
+    const dir = join(home, ".hermes");
+    await mkdir(dir, { recursive: true });
+    writeHermesDb(join(dir, "state.db"));
+
+    const found = await detectSource("hermes", home);
+
+    expect(found?.source).toBe("hermes");
+    expect(found?.dir).toBe(join(home, ".hermes"));
+    expect(found?.fileCount).toBe(1);
+  });
+
+  it("reports which registered sources have detected sync locations", () => {
+    expect(detectedSourceNames()).toEqual(["claude-code", "codex", "hermes"]);
+    expect(hasDetectedSourceLocation("hermes")).toBe(true);
+    expect(hasDetectedSourceLocation("openclaw")).toBe(false);
   });
 });

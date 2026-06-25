@@ -187,17 +187,28 @@ Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
 
 Some harnesses write transcript trees instead of emitting Lore-compatible hook
-payloads. For active sessions, use the incremental sync command from a hook,
-cron, launchd, task scheduler, or a manual terminal:
+payloads. For manual active-session catch-up, use the incremental sync command:
 
 ```bash
 lore sync codex
 lore sync claude-code
+lore sync hermes
 ```
 
 `codex` sync indexes `~/.codex/sessions` incrementally, with
 `~/.codex/archived_sessions` only as a compatibility fallback. `claude-code`
-sync indexes `~/.claude/projects` incrementally.
+sync indexes `~/.claude/projects` incrementally, including subagent
+transcripts. `hermes` sync indexes `~/.hermes` incrementally.
+
+For cron, launchd, Task Scheduler, or any unattended timer, use the bundled
+lock-protected wrapper instead of raw `lore sync` so multiple source jobs do not
+write `~/.lore/lore.db` at the same time:
+
+```bash
+./scripts/lore-sync-once.sh codex
+./scripts/lore-sync-once.sh claude-code
+./scripts/lore-sync-once.sh hermes
+```
 
 ## 💻 Recall from the CLI, no server required
 
@@ -376,10 +387,12 @@ never blow the context window.
 Compaction is the moment memory matters most, so catch fresh session content
 before it disappears from the active context. The exact hook differs by harness:
 Claude Code can call `lore hook` from `PreCompact` / `SessionEnd` when a hook
-payload is available, or `lore sync claude-code` from a timer/manual catch-up
-when only the transcript tree needs freshening. Codex should call
-`lore sync codex` from its `notify` hook or a timer because it writes a session
-tree rather than a `transcript_path` hook payload.
+payload is available, or `lore sync claude-code` for manual catch-up when only
+the transcript tree needs freshening. Timers should call
+`scripts/lore-sync-once.sh claude-code` so the shared store write is locked.
+Codex should use its notify wrapper or `scripts/lore-sync-once.sh codex` from a
+timer because it writes a session tree rather than a `transcript_path` hook
+payload.
 
 The skill setup references carry the exact recipes:
 [`skills/lore/references/setup/claude-code-hooks.md`](skills/lore/references/setup/claude-code-hooks.md),

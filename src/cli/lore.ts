@@ -11,7 +11,11 @@ import { logger } from "../core/logger.js";
 import { getAdapter, adapterSources } from "../adapters/registry.js";
 import { sampleFormat, renderSample } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
-import { detectSource } from "../setup/detect-sources.js";
+import {
+  detectedSourceNames,
+  detectSource,
+  hasDetectedSourceLocation,
+} from "../setup/detect-sources.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { findRelevant } from "../core/search/find-relevant.js";
@@ -84,9 +88,10 @@ Usage:
   lore sync <source> [--home <dir>] [--no-redact]
                                      Incrementally index a detected active transcript
                                      tree for a known source (for example codex or
-                                     claude-code). This is the command for cron,
-                                     launchd, task scheduler, or manual live catch-up
-                                     when a harness has no lifecycle hook.
+                                     claude-code or hermes). Use this directly for
+                                     manual live catch-up. For cron, launchd, or
+                                     task scheduler, run the lock-protected wrapper
+                                     scripts/lore-sync-once.sh <source>.
   lore status [filters] [--json]
                                      Read-only store health/status. Filters:
                                      --source --project --since --until
@@ -142,7 +147,9 @@ Common workflows:
   Recall past work:     lore search "decision words" --project <repo> --relevant
                         then spend the returned ids with lore get/context/session.
   Freshen live memory: npm run build in a source checkout, then lore sync <source>
-                        (for example lore sync codex or lore sync claude-code).
+                        (for example lore sync codex, lore sync claude-code,
+                        or lore sync hermes). Scheduled jobs should use
+                        scripts/lore-sync-once.sh <source> for locking.
                         For npm installs, reinstall/update Lore instead of relying
                         on an old global dist/ build.
   Check health first:   lore status --json --source codex --project <repo>
@@ -352,6 +359,14 @@ export async function runCli(argv: string[]): Promise<number> {
         );
         return 1;
       }
+      if (!hasDetectedSourceLocation(source)) {
+        process.stderr.write(
+          `error: detected sync is not configured for "${source}". ` +
+            `Detected sync supports: ${detectedSourceNames().join(", ")}. ` +
+            `Use \`lore index <dir> --source ${source}\` for manual indexing.\n`,
+        );
+        return 1;
+      }
       const redact = noRedact ? false : undefined;
       const detected = await detectSource(source, home);
       if (!detected) {
@@ -366,6 +381,7 @@ export async function runCli(argv: string[]): Promise<number> {
       try {
         const totals = await backfillDirectory(db, detected.dir, {
           adapter,
+          includeSubagents: source === "claude-code",
           redact,
           // Live catch-up should be quiet but still observable in logs on large
           // trees. One output line below is the stable human/script contract.

@@ -40,12 +40,14 @@ detected-source sync path instead:
 lore sync claude-code
 ```
 
-This incrementally indexes `~/.claude/projects` with the same resume/watermark
-path as `lore index`, so repeat runs are cheap and suitable for cron, launchd,
-Task Scheduler, or manual recovery.
+This incrementally indexes `~/.claude/projects`, including subagent
+transcripts, with the same resume/watermark path as `lore index`. Repeat runs
+are cheap and suitable for manual recovery.
 
-For a source checkout on macOS, a launchd fallback can run the bundled generic
-sync wrapper every minute:
+For cron, launchd, Task Scheduler, or any unattended timer, use the bundled
+generic sync wrapper instead of raw `lore sync` so concurrent source jobs share
+one lock. For a source checkout on macOS, a launchd fallback can run it every
+minute:
 
 ```xml
 <array>

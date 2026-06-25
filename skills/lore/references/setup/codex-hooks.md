@@ -5,11 +5,14 @@ Desktop sessions to become searchable shortly after each turn.
 
 Codex is not Claude Code: its `notify` hook does not provide a `transcript_path`
 payload that `lore hook` can consume. Codex writes JSONL transcripts under
-`~/.codex/sessions`, so the live path is an incremental tree sync:
+`~/.codex/sessions`, so the routine live path is the lock-protected sync wrapper
+that runs an incremental tree sync:
 
 ```bash
-lore sync codex
+./scripts/lore-sync-once.sh codex
 ```
+
+Use raw `lore sync codex` only for manual/debug catch-up from a terminal.
 
 ## Notify hook
 
@@ -45,17 +48,17 @@ npm install
 npm run build
 ```
 
-For a global npm install, the package already includes `dist/` and `scripts/`;
-use the absolute path to the installed `scripts/codex-notify-lore-sync.sh`.
+For a global npm install, the package already includes `dist/` and `scripts/`.
+Use the absolute path to the installed `scripts/codex-notify-lore-sync.sh`. Set
+`LORE_CLI_JS` only if the script was copied elsewhere or should call a different
+built CLI file.
 
 The sync script finds `node` from `PATH`, `LORE_NODE_BIN`, or an installed nvm
 node under `~/.nvm/versions/node/*/bin/node`. If Codex runs with a sparse app
 environment, set `LORE_NODE_BIN` to an absolute Node executable path.
 
-By default the script runs the checked-out CLI at `dist/cli/lore.js`, which is
-the source-install path after `npm run build`. Global npm installs do not have
-that local checkout path; set `LORE_CLI_JS` if your hook should call a different
-built CLI file.
+By default the script runs the CLI at `dist/cli/lore.js` next to the packaged or
+checked-out scripts.
 
 ## Optional launchd fallback
 

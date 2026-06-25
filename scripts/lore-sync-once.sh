@@ -1,5 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -u
+
+PATH="${PATH:-/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
+case ":$PATH:" in
+  *:/usr/bin:*) ;;
+  *) PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" ;;
+esac
+export PATH
 
 source_name="${1:-${LORE_SYNC_SOURCE:-}}"
 if [ -z "$source_name" ]; then
@@ -7,7 +14,7 @@ if [ -z "$source_name" ]; then
   exit 1
 fi
 
-safe_source="$(printf '%s' "$source_name" | tr -c 'A-Za-z0-9_.-' '_')"
+safe_source="${source_name//[!A-Za-z0-9_.-]/_}"
 user_id="${UID:-$(id -u)}"
 state_dir="${LORE_SYNC_STATE_DIR:-${TMPDIR:-/tmp}/lore-sync-$safe_source-$user_id}"
 lock_root="${LORE_SYNC_LOCK_DIR:-${TMPDIR:-/tmp}/lore-sync-global-$user_id}"
@@ -76,12 +83,14 @@ find_node() {
     return 0
   fi
 
-  for candidate in "$HOME"/.nvm/versions/node/*/bin/node; do
-    if [ -x "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
+  if [ -n "${HOME:-}" ]; then
+    for candidate in "$HOME"/.nvm/versions/node/*/bin/node; do
+      if [ -x "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  fi
 
   return 1
 }

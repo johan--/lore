@@ -39,15 +39,31 @@ describe("runSetup", () => {
 
   it("detects, indexes, and verifies a claude-code transcript end to end", async () => {
     const dir = join(home, ".claude", "projects", "proj");
-    await mkdir(dir, { recursive: true });
+    const subagentDir = join(dir, "sess", "subagents");
+    await mkdir(subagentDir, { recursive: true });
     await writeFile(join(dir, "sess.jsonl"), userLine("remember the alamo") + "\n");
+    await writeFile(
+      join(subagentDir, "agent-alpha.jsonl"),
+      JSON.stringify({
+        type: "user",
+        uuid: "sub-1",
+        parentUuid: null,
+        timestamp: "2026-05-10T03:54:45.638Z",
+        sessionId: "sess",
+        agentId: "alpha",
+        cwd: "/repo",
+        gitBranch: "main",
+        message: { role: "user", content: "setup indexes subagent alamo" },
+      }) + "\n",
+    );
 
     const db = openStore(":memory:");
     const result = await runSetup(db, home);
 
     expect(result.indexed).toHaveLength(1);
     expect(result.indexed[0]?.source).toBe("claude-code");
-    expect(result.indexed[0]?.messages).toBeGreaterThan(0);
+    expect(result.indexed[0]?.files).toBe(2);
+    expect(result.indexed[0]?.messages).toBe(2);
     expect(result.verified).toBe(true);
     db.close();
   });
