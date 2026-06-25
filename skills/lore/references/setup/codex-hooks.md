@@ -80,5 +80,5 @@ lore search "<word from the current Codex session>" --source codex
 
 If the search is empty, check
 `${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log` for notify-wrapper errors.
-Then confirm the repo has been built and run `scripts/lore-sync-once.sh codex`
+Then confirm the repo has been built and run `./scripts/lore-sync-once.sh codex`
 manually.

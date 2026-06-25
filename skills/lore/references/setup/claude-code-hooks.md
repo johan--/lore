@@ -57,5 +57,9 @@ sync wrapper every minute:
 Run the script manually first after `npm run build`:
 
 ```bash
-scripts/lore-sync-once.sh claude-code
+./scripts/lore-sync-once.sh claude-code
 ```
+
+The wrapper uses a shared per-user lock across sources so Codex and Claude Code
+syncs cannot write the SQLite store at the same time. If a scheduled run loses
+the lock, it exits quietly and the next interval catches up.
