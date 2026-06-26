@@ -11,7 +11,11 @@ import { logger } from "../core/logger.js";
 import { getAdapter, adapterSources } from "../adapters/registry.js";
 import { sampleFormat, renderSample } from "../adapters/sample-format.js";
 import { runSetup } from "../setup/run-setup.js";
-import { detectCodexSource } from "../setup/detect-sources.js";
+import {
+  detectedSourceNames,
+  detectSource,
+  hasDetectedSourceLocation,
+} from "../setup/detect-sources.js";
 import { renderRegistrationGuide } from "../setup/registration-guide.js";
 import { searchMemory } from "../core/search/search-memory.js";
 import { findRelevant } from "../core/search/find-relevant.js";
@@ -81,11 +85,13 @@ Usage:
                                      Backfill transcripts under <dir> into the store
                                      (--source picks an adapter; default claude-code;
                                      credentials are redacted by default, --no-redact disables)
-  lore sync codex [--home <dir>] [--no-redact]
-                                     Incrementally index the active Codex transcript
-                                     tree (~/.codex/sessions, archived fallback). This
-                                     is the incremental command for cron/launchd/live
-                                     catch-up when Codex has no lifecycle hook.
+  lore sync <source> [--home <dir>] [--no-redact]
+                                     Incrementally index a detected active transcript
+                                     tree for a known source (for example codex or
+                                     claude-code or hermes). Use this directly for
+                                     manual live catch-up. For cron, launchd, or
+                                     task scheduler, run the lock-protected wrapper
+                                     scripts/lore-sync-once.sh <source>.
   lore status [filters] [--json]
                                      Read-only store health/status. Filters:
                                      --source --project --since --until
@@ -140,7 +146,10 @@ Usage:
 Common workflows:
   Recall past work:     lore search "decision words" --project <repo> --relevant
                         then spend the returned ids with lore get/context/session.
-  Freshen Codex memory: npm run build in a source checkout, then lore sync codex.
+  Freshen live memory: npm run build in a source checkout, then lore sync <source>
+                        (for example lore sync codex, lore sync claude-code,
+                        or lore sync hermes). Scheduled jobs should use
+                        scripts/lore-sync-once.sh <source> for locking.
                         For npm installs, reinstall/update Lore instead of relying
                         on an old global dist/ build.
   Check health first:   lore status --json --source codex --project <repo>
@@ -337,22 +346,34 @@ export async function runCli(argv: string[]): Promise<number> {
         process.stderr.write(error);
         return 1;
       }
-      if (source !== "codex") {
-        process.stderr.write("error: `lore sync` currently supports only `codex`\n\n" + USAGE);
+      if (!source) {
+        process.stderr.write("error: `lore sync` requires a <source>\n\n" + USAGE);
         return 1;
       }
-      const redact = noRedact ? false : undefined;
-      const detected = await detectCodexSource(home);
-      if (!detected) {
-        const base = home ?? "~";
+      const adapter = getAdapter(source);
+      if (!adapter) {
         process.stderr.write(
-          `error: no Codex rollout transcripts found under ${base}/.codex/sessions or ${base}/.codex/archived_sessions\n`,
+          `error: unknown source "${source}". ` +
+            `Known sources: ${adapterSources().join(", ")}\n\n` +
+            USAGE,
         );
         return 1;
       }
-      const adapter = getAdapter("codex");
-      if (!adapter) {
-        process.stderr.write("error: built-in codex adapter is not registered\n");
+      if (!hasDetectedSourceLocation(source)) {
+        process.stderr.write(
+          `error: detected sync is not configured for "${source}". ` +
+            `Detected sync supports: ${detectedSourceNames().join(", ")}. ` +
+            `Use \`lore index <dir> --source ${source}\` for manual indexing.\n`,
+        );
+        return 1;
+      }
+      const redact = noRedact ? false : undefined;
+      const detected = await detectSource(source, home);
+      if (!detected) {
+        const base = home ?? "~";
+        process.stderr.write(
+          `error: no ${source} transcripts found under known locations for ${base}\n`,
+        );
         return 1;
       }
       const db = openStoreForWrite(resolveDbPath());
@@ -360,13 +381,14 @@ export async function runCli(argv: string[]): Promise<number> {
       try {
         const totals = await backfillDirectory(db, detected.dir, {
           adapter,
+          includeSubagents: source === "claude-code",
           redact,
           // Live catch-up should be quiet but still observable in logs on large
           // trees. One output line below is the stable human/script contract.
           progressEvery: 250,
         });
         process.stdout.write(
-          `Synced codex from ${detected.dir}: ${totals.files} files, ` +
+          `Synced ${source} from ${detected.dir}: ${totals.files} files, ` +
             `${totals.filesIndexed} indexed, ${totals.filesSkipped} skipped, ` +
             `${totals.messages} messages, ${totals.toolCalls} tool calls.\n`,
         );

@@ -5,11 +5,14 @@ Desktop sessions to become searchable shortly after each turn.
 
 Codex is not Claude Code: its `notify` hook does not provide a `transcript_path`
 payload that `lore hook` can consume. Codex writes JSONL transcripts under
-`~/.codex/sessions`, so the live path is an incremental tree sync:
+`~/.codex/sessions`, so the routine live path is the lock-protected sync wrapper
+that runs an incremental tree sync:
 
 ```bash
-lore sync codex
+./scripts/lore-sync-once.sh codex
 ```
+
+Use raw `lore sync codex` only for manual/debug catch-up from a terminal.
 
 ## Notify hook
 
@@ -24,13 +27,17 @@ The wrapper does two things:
 
 1. Preserves Codex Desktop's bundled notification client when present at its
    standard location under `~/.codex/computer-use`.
-2. Starts `scripts/lore-codex-sync-once.sh` in the background.
+2. Starts `scripts/lore-codex-sync-once.sh` in the background. That compatibility
+   wrapper delegates to `scripts/lore-sync-once.sh codex`.
 
-`lore-codex-sync-once.sh` uses a user-specific state directory at
-`${TMPDIR:-/tmp}/lore-codex-sync-$UID` by default. Its PID-backed lock keeps a
-turn-ended notify sync and a launchd or cron sync from overlapping, and the
-wrapper writes bounded logs under that same directory. Set `LORE_CODEX_STATE_DIR`
-to choose a different lock/log location.
+`lore-sync-once.sh <source>` uses a user/source-specific state directory at
+`${TMPDIR:-/tmp}/lore-sync-<source>-$UID` by default. Its PID-backed global lock
+at `${TMPDIR:-/tmp}/lore-sync-global-$UID` keeps sync jobs for different sources
+from writing the same SQLite store concurrently. Set `LORE_SYNC_STATE_DIR` to
+choose a different source state directory and `LORE_SYNC_LOCK_DIR` to choose a
+different global lock directory. The Codex notify wrapper still writes its own
+small stdout/stderr logs under
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID`.
 
 ## Node and build requirements
 
@@ -41,17 +48,17 @@ npm install
 npm run build
 ```
 
-For a global npm install, the package already includes `dist/` and `scripts/`;
-use the absolute path to the installed `scripts/codex-notify-lore-sync.sh`.
+For a global npm install, the package already includes `dist/` and `scripts/`.
+Use the absolute path to the installed `scripts/codex-notify-lore-sync.sh`. Set
+`LORE_CLI_JS` only if the script was copied elsewhere or should call a different
+built CLI file.
 
 The sync script finds `node` from `PATH`, `LORE_NODE_BIN`, or an installed nvm
 node under `~/.nvm/versions/node/*/bin/node`. If Codex runs with a sparse app
 environment, set `LORE_NODE_BIN` to an absolute Node executable path.
 
-By default the script runs the checked-out CLI at `dist/cli/lore.js`, which is
-the source-install path after `npm run build`. Global npm installs do not have
-that local checkout path; set `LORE_CLI_JS` if your hook should call a different
-built CLI file.
+By default the script runs the CLI at `dist/cli/lore.js` next to the packaged or
+checked-out scripts.
 
 ## Optional launchd fallback
 
@@ -61,7 +68,8 @@ Use an absolute repo path in the plist:
 
 ```xml
 <array>
-  <string>/absolute/path/to/lore/scripts/lore-codex-sync-once.sh</string>
+  <string>/absolute/path/to/lore/scripts/lore-sync-once.sh</string>
+  <string>codex</string>
 </array>
 ```
 
@@ -74,6 +82,6 @@ lore search "<word from the current Codex session>" --source codex
 ```
 
 If the search is empty, check
-`${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log`, which the wrapper creates
-when errors occur. Then confirm the repo has been built and run
-`scripts/lore-codex-sync-once.sh` manually.
+`${TMPDIR:-/tmp}/lore-codex-sync-$UID/sync.err.log` for notify-wrapper errors.
+Then confirm the repo has been built and run `./scripts/lore-sync-once.sh codex`
+manually.

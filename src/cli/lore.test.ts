@@ -91,6 +91,27 @@ const VALID_PUSH_BATCH = {
   toolCalls: [],
 };
 
+function writeHermesFixtureDb(path: string, content: string): void {
+  const db = new Database(path);
+  db.exec(
+    "CREATE TABLE sessions (id TEXT PRIMARY KEY, source TEXT, model TEXT, cwd TEXT, started_at REAL)",
+  );
+  db.exec(
+    "CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, role TEXT, content TEXT, tool_call_id TEXT, tool_calls TEXT, tool_name TEXT, timestamp REAL)",
+  );
+  db.prepare("INSERT INTO sessions (id, source, model, cwd, started_at) VALUES (?,?,?,?,?)").run(
+    "sess-hermes-sync",
+    "cli",
+    "minimax/minimax-m2.7",
+    "/repo/hermes",
+    1776879366,
+  );
+  db.prepare(
+    "INSERT INTO messages (session_id, role, content, tool_call_id, tool_calls, tool_name, timestamp) VALUES (?,?,?,?,?,?,?)",
+  ).run("sess-hermes-sync", "user", content, null, null, null, 1776879366);
+  db.close();
+}
+
 function seedStatusStore(): void {
   const db = openStore(dbPath);
   try {
@@ -268,6 +289,110 @@ describe("lore CLI", () => {
     db.close();
   });
 
+  it("`sync claude-code` incrementally indexes the active Claude projects tree", async () => {
+    const claudeDir = join(dir, ".claude", "projects", "myproj");
+    await mkdir(claudeDir, { recursive: true });
+    const transcript =
+      JSON.stringify({
+        type: "user",
+        uuid: "u-claude-sync",
+        parentUuid: null,
+        timestamp: "2026-06-25T12:00:00.000Z",
+        sessionId: "sess-claude-sync",
+        cwd: "/repo/claude",
+        gitBranch: "main",
+        message: { role: "user", content: "claude live sync keyword" },
+      }) + "\n";
+    await writeFile(join(claudeDir, "sess-claude-sync.jsonl"), transcript);
+
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const first = await runCli(["sync", "claude-code", "--home", dir]);
+    const second = await runCli(["sync", "--home", dir, "claude-code"]);
+    spy.mockRestore();
+
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+    const out = writes.join("");
+    expect(out).toContain("Synced claude-code");
+    expect(out).toContain("1 indexed");
+    expect(out).toContain("1 skipped");
+
+    const db = openStore(dbPath);
+    const hits = searchMemory(db, "sync", { source: "claude-code" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.project).toBe("/repo/claude");
+    db.close();
+  });
+
+  it("`sync claude-code` includes nested subagent transcripts", async () => {
+    const claudeDir = join(dir, ".claude", "projects", "myproj");
+    const subagentDir = join(claudeDir, "sess-claude-subagent", "subagents");
+    await mkdir(subagentDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "sess-claude-subagent.jsonl"),
+      JSON.stringify({
+        type: "user",
+        uuid: "u-claude-primary",
+        parentUuid: null,
+        timestamp: "2026-06-25T12:00:00.000Z",
+        sessionId: "sess-claude-subagent",
+        cwd: "/repo/claude",
+        gitBranch: "main",
+        message: { role: "user", content: "primary sync sentinel" },
+      }) + "\n",
+    );
+    await writeFile(
+      join(subagentDir, "agent-alpha.jsonl"),
+      JSON.stringify({
+        type: "user",
+        uuid: "u-claude-subagent",
+        parentUuid: null,
+        timestamp: "2026-06-25T12:00:01.000Z",
+        sessionId: "sess-claude-subagent",
+        cwd: "/repo/claude",
+        gitBranch: "main",
+        agentId: "alpha",
+        message: { role: "user", content: "subagent sync sentinel" },
+      }) + "\n",
+    );
+
+    const result = await runCaptured(["sync", "claude-code", "--home", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Synced claude-code");
+    expect(result.stdout).toContain("2 indexed");
+
+    const db = openStore(dbPath);
+    const primaryHits = searchMemory(db, "primary sentinel", { source: "claude-code" });
+    const subagentHits = searchMemory(db, "subagent sentinel", { source: "claude-code" });
+    expect(primaryHits).toHaveLength(1);
+    expect(subagentHits).toHaveLength(1);
+    expect(subagentHits[0]?.agent).toBe("alpha");
+    db.close();
+  });
+
+  it("`sync hermes` detects the global Hermes root and indexes its state database", async () => {
+    const hermesDir = join(dir, ".hermes");
+    await mkdir(hermesDir, { recursive: true });
+    writeHermesFixtureDb(join(hermesDir, "state.db"), "hermes live sync keyword");
+
+    const result = await runCaptured(["sync", "hermes", "--home", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Synced hermes");
+    expect(result.stdout).toContain("1 indexed");
+
+    const db = openStore(dbPath);
+    const hits = searchMemory(db, "hermes live sync", { source: "hermes" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.project).toBe("/repo/hermes");
+    db.close();
+  });
+
   it("`sync codex` fails cleanly when no Codex transcripts are present", async () => {
     const writes: string[] = [];
     const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
@@ -278,7 +403,29 @@ describe("lore CLI", () => {
     spy.mockRestore();
 
     expect(code).toBe(1);
-    expect(writes.join("")).toContain("no Codex rollout transcripts");
+    expect(writes.join("")).toContain("no codex transcripts found");
+  });
+
+  it("`sync claude-code` fails cleanly when no Claude transcripts are present", async () => {
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const code = await runCli(["sync", "claude-code", "--home", dir]);
+    spy.mockRestore();
+
+    expect(code).toBe(1);
+    expect(writes.join("")).toContain("no claude-code transcripts found");
+  });
+
+  it("`sync <source>` explains registered sources without detected sync roots", async () => {
+    const result = await runCaptured(["sync", "openclaw", "--home", dir]);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('detected sync is not configured for "openclaw"');
+    expect(result.stderr).toContain("Detected sync supports: claude-code, codex, hermes");
+    expect(result.stderr).toContain("lore index <dir> --source openclaw");
   });
 
   it("`sync codex --home` requires a directory", async () => {

@@ -237,7 +237,8 @@ A compromised MCP client must never be able to wipe memory.
 
 This part of the skill is about *using* what's indexed. Getting transcripts
 *into* lore — `lore setup` (auto-detect Claude Code / Codex), `lore index <dir>`,
-`lore sync codex` (incremental active Codex catch-up), `lore sample <dir>`,
+`lore sync <source>` (incremental active transcript-tree catch-up for sources
+such as `codex` and `claude-code`), `lore sample <dir>`,
 `lore hook` (compaction capture for harnesses that emit a transcript path), and
 **writing a reviewed code adapter for a brand-new harness** (the
 `checkAdapterConformance` round-trip) — is the deterministic onboarding flow in
@@ -249,7 +250,7 @@ Quick reference only:
 ```bash
 lore setup            # detect known harnesses here, index, self-verify, print MCP registration
 lore index <dir> [--source <name>] [--subagents] [--no-redact]
-lore sync codex       # incremental active Codex catch-up for cron/launchd/manual use
+lore sync <source>    # incremental active catch-up, e.g. codex or claude-code
 lore sample <dir>     # summarize an unknown transcript dir's on-disk format
 ```
 

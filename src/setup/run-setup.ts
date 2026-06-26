@@ -47,6 +47,7 @@ export async function runSetup(
     if (!adapter) continue;
     const totals = await backfillDirectory(db, found.dir, {
       adapter,
+      includeSubagents: found.source === "claude-code",
       progressEvery: 25,
       redact: opts.redact,
     });

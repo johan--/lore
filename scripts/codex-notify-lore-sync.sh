@@ -1,8 +1,19 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -u
 
+PATH="${PATH:-/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
+case ":$PATH:" in
+  *:/usr/bin:*) ;;
+  *) PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" ;;
+esac
+export PATH
+
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-computer_use_notifier="${CODEX_PREVIOUS_NOTIFY_COMMAND:-$HOME/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient}"
+default_notifier=""
+if [ -n "${HOME:-}" ]; then
+  default_notifier="$HOME/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"
+fi
+computer_use_notifier="${CODEX_PREVIOUS_NOTIFY_COMMAND:-$default_notifier}"
 sync_once="${LORE_CODEX_SYNC_ONCE:-$script_dir/lore-codex-sync-once.sh}"
 user_id="${UID:-$(id -u)}"
 state_dir="${LORE_CODEX_STATE_DIR:-${TMPDIR:-/tmp}/lore-codex-sync-$user_id}"

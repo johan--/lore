@@ -191,8 +191,11 @@ out of context. The exact hook depends on the harness:
 
 - Claude Code emits a `transcript_path` hook payload; use
   `skills/lore/references/setup/claude-code-hooks.md`.
-- Codex writes a session tree and should run `lore sync codex`; use
-  `skills/lore/references/setup/codex-hooks.md`.
+- Codex writes a session tree and should use the lock-protected sync wrapper
+  from `skills/lore/references/setup/codex-hooks.md`.
+- Claude Code can also be catch-up synced from its transcript tree with
+  `lore sync claude-code` when hook capture is unavailable or suspected stale;
+  use the lock-protected sync wrapper for unattended timers.
 - For anything else, use
   `skills/lore/references/setup/other-harness-hooks.md` to choose between
   `lore hook`, `lore index`, a dedicated sync command, or live `lore push`.

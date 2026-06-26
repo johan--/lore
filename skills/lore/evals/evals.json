@@ -57,6 +57,46 @@
           "text": "Recognizes the `{error:invalid_batch}` envelope + non-zero exit as a rejected write"
         }
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Claude Code hook capture looks stale. Set up safe catch-up sync without corrupting the shared store.",
+      "expected_output": "Uses `lore sync claude-code` for a one-off manual catch-up, but recommends `scripts/lore-sync-once.sh claude-code` for cron, launchd, Task Scheduler, or any unattended timer because the wrapper holds the shared single-writer lock. Notes that Claude Code sync includes subagent transcripts.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "manual-sync-ok",
+          "text": "Uses `lore sync claude-code` only as a manual/debug catch-up command"
+        },
+        {
+          "id": "scheduled-wrapper",
+          "text": "Routes unattended scheduled catch-up through `scripts/lore-sync-once.sh claude-code`"
+        },
+        {
+          "id": "subagents-included",
+          "text": "States that detected Claude Code sync includes subagent transcripts"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Hermes has history under ~/.hermes. Make it fresh in Lore and explain what to do if another adapter has no detected root.",
+      "expected_output": "Uses `lore sync hermes` for the known global Hermes root. For registered adapters without a detected root, explains that the agent should use `lore index <dir> --source <name>` until a known detected source location is added.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "sync-hermes",
+          "text": "Uses `lore sync hermes` for the known `~/.hermes` root"
+        },
+        {
+          "id": "manual-index-fallback",
+          "text": "Uses `lore index <dir> --source <name>` for adapters without a configured detected sync root"
+        },
+        {
+          "id": "no-fake-root",
+          "text": "Does not invent a detected root for an adapter whose standard location is unknown"
+        }
+      ]
     }
   ]
 }

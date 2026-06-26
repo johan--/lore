@@ -10,9 +10,10 @@ Start by finding which of these three shapes the harness exposes:
    adapter for that format. The hook command must receive the harness payload on
    stdin.
 2. **Hook payload does not include a transcript path, but the harness writes
-   session files to a known directory.** Use `lore index <dir> --source <name>` or
-   a dedicated sync command from the hook, cron, or launchd. Codex uses this
-   shape: `notify` triggers `lore sync codex`.
+   session files to a known directory.** Use `lore index <dir> --source <name>`
+   for manual catch-up, or a lock-protected dedicated sync wrapper from hooks,
+   cron, launchd, or Task Scheduler. Codex uses this shape: `notify` triggers the
+   bundled wrapper that delegates to `lore sync codex`.
 3. **No readable transcript files exist.** Use the live PUSH path: have the
    harness call the `push` MCP tool or pipe normalized `{ sourceFile, messages,
    toolCalls }` JSON into `lore push`.

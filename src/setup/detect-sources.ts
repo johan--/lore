@@ -25,6 +25,7 @@ const KNOWN_LOCATIONS: KnownLocation[] = [
   { source: "claude-code", segments: [".claude", "projects"] },
   { source: "codex", segments: [".codex", "sessions"], group: "codex-history" },
   { source: "codex", segments: [".codex", "archived_sessions"], group: "codex-history" },
+  { source: "hermes", segments: [".hermes"] },
 ];
 
 export interface DetectedSource {
@@ -33,6 +34,14 @@ export interface DetectedSource {
   dir: string;
   /** How many transcript files the source's adapter discovers there. */
   fileCount: number;
+}
+
+export function detectedSourceNames(): Source[] {
+  return [...new Set(KNOWN_LOCATIONS.map((location) => location.source))];
+}
+
+export function hasDetectedSourceLocation(source: Source): boolean {
+  return KNOWN_LOCATIONS.some((location) => location.source === source);
 }
 
 async function detectKnownLocation(
@@ -72,8 +81,20 @@ export async function detectSources(home: string = homedir()): Promise<DetectedS
  * archived_sessions only as a compatibility fallback.
  */
 export async function detectCodexSource(home: string = homedir()): Promise<DetectedSource | null> {
+  return detectSource("codex", home);
+}
+
+/**
+ * Detect the active transcript root for one known source. When a source has
+ * compatibility fallbacks (for example Codex archived sessions), locations are
+ * tried in priority order and the first discoverable tree wins.
+ */
+export async function detectSource(
+  source: Source,
+  home: string = homedir(),
+): Promise<DetectedSource | null> {
   for (const location of KNOWN_LOCATIONS) {
-    if (location.source !== "codex") continue;
+    if (location.source !== source) continue;
     const detected = await detectKnownLocation(location, home);
     if (detected) return detected;
   }

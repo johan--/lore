@@ -38,9 +38,10 @@ workflow substrate for agents that have to continue real work:
 - **Freshness checks.** `lore status` tells an agent whether a source/project
   window is ready, missing, stale, or possibly unsynced before it writes a brief
   or handoff from incomplete memory.
-- **Live Codex sync.** `lore sync codex` indexes the active
-  `~/.codex/sessions` tree incrementally, with archived sessions only as a
-  compatibility fallback.
+- **Live detected-source sync.** `lore sync <source>` indexes a detected active
+  transcript tree incrementally. This covers `codex` (`~/.codex/sessions`, with
+  archived sessions as a compatibility fallback) and `claude-code`
+  (`~/.claude/projects`) without forcing agents to remember raw paths.
 - **Workflow skills.** The npm package now ships `lore-recall`, `lore-brief`,
   `lore-handoff`, and `lore-dev-verification` alongside the base `lore` skill.
   They include references, examples, eval specs, validators, and committed test
@@ -185,16 +186,29 @@ arrays, so the Cursor adapter indexes text only and fabricates no tool calls.
 Re-run any of these whenever. Unchanged files get skipped, so repeat runs are
 cheap.
 
-Codex does not currently provide a Lore-compatible lifecycle hook. For active
-Codex Desktop sessions, use the dedicated incremental sync command from its
-`notify` hook, cron, launchd, or a manual terminal:
+Some harnesses write transcript trees instead of emitting Lore-compatible hook
+payloads. For manual active-session catch-up, use the incremental sync command:
 
 ```bash
 lore sync codex
+lore sync claude-code
+lore sync hermes
 ```
 
-It indexes `~/.codex/sessions` incrementally, with `~/.codex/archived_sessions`
-only as a compatibility fallback.
+`codex` sync indexes `~/.codex/sessions` incrementally, with
+`~/.codex/archived_sessions` only as a compatibility fallback. `claude-code`
+sync indexes `~/.claude/projects` incrementally, including subagent
+transcripts. `hermes` sync indexes `~/.hermes` incrementally.
+
+For cron, launchd, Task Scheduler, or any unattended timer, use the bundled
+lock-protected wrapper instead of raw `lore sync` so multiple source jobs do not
+write `~/.lore/lore.db` at the same time:
+
+```bash
+./scripts/lore-sync-once.sh codex
+./scripts/lore-sync-once.sh claude-code
+./scripts/lore-sync-once.sh hermes
+```
 
 ## 💻 Recall from the CLI, no server required
 
@@ -372,9 +386,13 @@ never blow the context window.
 
 Compaction is the moment memory matters most, so catch fresh session content
 before it disappears from the active context. The exact hook differs by harness:
-Claude Code can call `lore hook` from `PreCompact` / `SessionEnd`; Codex should
-call `lore sync codex` from its `notify` hook or a timer because it writes a
-session tree rather than a `transcript_path` hook payload.
+Claude Code can call `lore hook` from `PreCompact` / `SessionEnd` when a hook
+payload is available, or `lore sync claude-code` for manual catch-up when only
+the transcript tree needs freshening. Timers should call
+`scripts/lore-sync-once.sh claude-code` so the shared store write is locked.
+Codex should use its notify wrapper or `scripts/lore-sync-once.sh codex` from a
+timer because it writes a session tree rather than a `transcript_path` hook
+payload.
 
 The skill setup references carry the exact recipes:
 [`skills/lore/references/setup/claude-code-hooks.md`](skills/lore/references/setup/claude-code-hooks.md),

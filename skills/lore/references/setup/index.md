@@ -128,16 +128,29 @@ Re-running is cheap — unchanged files are skipped by the per-file resume token
 (byte offset for JSONL, last row id for databases, content hash for whole-file
 sources).
 
-Codex has on-disk JSONL transcripts but no Claude-style `transcript_path`
-lifecycle hook. For active Codex Desktop sessions, use the incremental live
-catch-up command from Codex's `notify` hook, cron, launchd, or a manual terminal:
+Some harnesses have on-disk transcripts that need periodic catch-up even when a
+hook exists or when a hook is suspected stale. For manual catch-up, use the
+incremental live catch-up command:
 
 ```bash
 lore sync codex
+lore sync claude-code
+lore sync hermes
 ```
 
-It probes `~/.codex/sessions` first and uses `~/.codex/archived_sessions` only
-as a compatibility fallback.
+`codex` probes `~/.codex/sessions` first and uses `~/.codex/archived_sessions`
+only as a compatibility fallback. `claude-code` probes `~/.claude/projects` and
+includes subagent transcripts. `hermes` probes `~/.hermes`.
+
+For cron, launchd, Task Scheduler, or any unattended timer, use the bundled
+lock-protected wrapper instead of raw `lore sync` so multiple source jobs do not
+write `~/.lore/lore.db` at the same time:
+
+```bash
+./scripts/lore-sync-once.sh codex
+./scripts/lore-sync-once.sh claude-code
+./scripts/lore-sync-once.sh hermes
+```
 
 ### 3b. New harness, on-disk transcripts — write a reviewed code adapter
 
@@ -302,8 +315,9 @@ reference that matches the harness:
 
 - **Claude Code:** [`claude-code-hooks.md`](claude-code-hooks.md) uses
   `lore hook` because Claude Code emits a `transcript_path` payload.
-- **Codex:** [`codex-hooks.md`](codex-hooks.md) uses Codex `notify` plus
-  `lore sync codex` because Codex does not emit a `transcript_path` payload.
+- **Codex:** [`codex-hooks.md`](codex-hooks.md) uses Codex `notify` plus the
+  lock-protected sync wrapper because Codex does not emit a `transcript_path`
+  payload.
 - **Any unlisted harness:** [`other-harness-hooks.md`](other-harness-hooks.md)
   explains how to decide between `lore hook`, `lore index`, a dedicated sync, or
   live `lore push`.
